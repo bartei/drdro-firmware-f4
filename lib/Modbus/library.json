@@ -1,0 +1,13 @@
+{
+  "name": "Modbus-STM32-HAL-FreeRTOS",
+  "version": "1.0.0",
+  "description": "Modbus RTU/TCP master & slave for STM32 HAL + FreeRTOS (Alejandro Mera). Configured via ModbusConfig.h. Defines strong overrides of HAL UART weak callbacks (HAL_UART_TxCpltCallback/RxCpltCallback) — must NOT be archived or the overrides are dropped.",
+  "keywords": "modbus, rtu, stm32, freertos",
+  "authors": [{ "name": "Alejandro Mera" }],
+  "license": "MIT",
+  "frameworks": ["stm32cube"],
+  "platforms": ["ststm32"],
+  "build": {
+    "libArchive": false
+  }
+}

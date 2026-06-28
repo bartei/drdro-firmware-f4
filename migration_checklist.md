@@ -13,23 +13,24 @@ One-liner progress tracker. Detail for each item lives in `migration_todo.md`.
 - [x] Initial commit
 
 ## Phase 1 — Vendor middleware
-- [ ] Create `lib/FreeRTOS/` (sources + headers from main)
-- [ ] `lib/FreeRTOS/library.json`
-- [ ] Create `lib/Modbus/` (Modbus.c, UARTCallback.c, headers)
-- [ ] `lib/Modbus/library.json`
+- [x] Create `lib/FreeRTOS/` (sources + headers from main)
+- [x] `lib/FreeRTOS/library.json` (libArchive=false)
+- [x] Create `lib/Modbus/` (Modbus.c, UARTCallback.c, headers)
+- [x] `lib/Modbus/library.json` (libArchive=false)
 
 ## Phase 2 — Port app + Cube glue
-- [ ] Copy app IP (Ramps, Scales) → src/ + include/
-- [ ] Copy Cube glue (main, gpio, tim, usart, it, hal_msp, timebase, freertos) → src/
-- [ ] Copy config headers (FreeRTOSConfig, hal_conf, main.h, …) → include/
-- [ ] Copy newlib stubs (syscalls, sysmem) → src/
-- [ ] Copy linker script → root; `.ioc` + RAM.ld → docs/
+- [x] Copy app IP (Ramps, Scales) → src/ + include/
+- [x] Copy Cube glue (main, gpio, tim, usart, it, hal_msp, timebase, freertos) → src/
+- [x] Copy config headers (FreeRTOSConfig, hal_conf, main.h, …) → include/
+- [x] Copy newlib stubs (syscalls, sysmem) → src/
+- [x] Copy linker script → root; `.ioc` + RAM.ld → docs/
 
 ## Phase 3 — Green build
-- [ ] `pio run` compiles
-- [ ] Resolve duplicate symbols / include paths / float ABI
-- [ ] Compare flash/RAM size vs old `.map`
-- [ ] Commit working build
+- [x] `pio run` compiles
+- [x] Resolve float ABI (hard-float extra script); no dup-symbol issues
+- [x] Verify ELF: hard-float ABI + weak overrides (UART cb, RTOS handlers) linked
+- [x] Compare flash/RAM size vs original (31 KB vs 33 KB flash — OK)
+- [x] Commit working build
 
 ## Phase 4 — Hardware verification (handoff)
 - [ ] Flash via ST-Link
