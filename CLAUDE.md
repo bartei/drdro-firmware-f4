@@ -1,5 +1,8 @@
 # drDRO Firmware (PlatformIO)
 
+> **Resuming after a break? Read `RESUME.md` first** — current state, next steps,
+> build/test commands, and gotchas.
+
 Firmware for the drDRO rotary-controller board (STM32F411CEU6). Migrated from the
 STM32CubeIDE project `../rotary-controller-f4` (branch `main`, v2.0.1) to PlatformIO.
 
