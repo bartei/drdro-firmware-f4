@@ -15,9 +15,11 @@ STM32CubeIDE project `../rotary-controller-f4` (branch `main`, v2.0.1) to Platfo
 - PlatformIO Core (`pio`), platform `ststm32@~19.4.0`, `framework = stm32cube`.
 - Build:  `pio run`
 - Upload: `pio run -t upload`   (ST-Link)
+- Test:   `pio test -e native`  (host-side protocol unit tests; HAL/RTOS mocked under test/mocks/)
 - Clean:  `pio run -t clean`
 - Verbose (check flags/float-ABI): `pio run -v`
 - Artifacts: `.pio/build/drdro_f411ce/firmware.{elf,bin,hex}`
+- CI: `.github/workflows/ci.yml` (build + native tests) and `release.yml` (semver tag + release on `main`).
 
 ## Architecture
 - MCU STM32F411CEU6, Cortex-M4F, 100 MHz (8 MHz HSE × PLL). 512K flash / 128K RAM.

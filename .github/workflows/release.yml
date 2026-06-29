@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write              # create tags and releases
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compute semantic version
+        id: version
+        uses: PaulHatch/semantic-version@v5.4.0
+        with:
+          major_pattern: "major:"
+          minor_pattern: "feat:"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build firmware (version embedded)
+        env:
+          FW_VERSION: "v${{ steps.version.outputs.version }}"   # support/fw_version.py picks this up
+        run: pio run -e drdro_f411ce
+
+      - name: Tag the release
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.version.outputs.version }}" -m "v${{ steps.version.outputs.version }}"
+
+      - name: Push tag
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tags: true
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ steps.version.outputs.version }}"
+          generate_release_notes: true
+          files: |
+            .pio/build/drdro_f411ce/firmware.bin
+            .pio/build/drdro_f411ce/firmware.hex
+            .pio/build/drdro_f411ce/firmware.elf

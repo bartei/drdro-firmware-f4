@@ -15,8 +15,12 @@ update bootloader.
 ```sh
 pio run                 # build  (env: drdro_f411ce)  → flash ~44 KB / RAM ~23 KB
 pio run -t upload       # flash via ST-Link
+pio test -e native      # host-side protocol unit tests (21 cases, no hardware)
 pio run -t compiledb    # regenerate compile_commands.json for clangd (gitignored)
 ```
+CI runs build + native tests on every push/PR (`.github/workflows/ci.yml`); pushes
+to `main` also semantic-version, tag, and publish a release with firmware artifacts
+(`release.yml`). Remote: `git@github.com:bartei/drdro-firmware-f4.git`.
 Terminal test (the whole point of the new protocol) — RS485 adapter at **115200 8N1**,
 type commands (no checksum needed in CLI mode; responses end with a blank line):
 ```
