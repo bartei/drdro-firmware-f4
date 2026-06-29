@@ -59,7 +59,29 @@ else:
     if exec_valid(): VTOR=Exec; jump            // (LED handled by app: 1 blink)
     else: enter CLI / update mode
 ```
-`exec_valid()` / bank-valid = vector-table sanity (DB2) now, trailing CRC32 later.
+`exec_valid()` / bank-valid = `bl_bank_trusted()`: vector-table sanity (DB2) plus the recorded
+region CRC32 when present. `need_copy` also requires the active bank to be trusted, so a unit
+whose active bank is empty still runs a valid Exec instead of dropping to the CLI.
+
+## Bootloader mechanics (DB1–DB4, confirmed 2026-06-29)
+*(Foundational IAP decisions, carried over from the B0–B5 groundwork — see `bootloader_todo.md`.)*
+- **DB1 — Update trigger:** a no-init RAM word (`BOOT_FLAG` @ `0x2001FFF0`; top 16 B reserved by
+  both linker scripts) holds `BOOT_MAGIC`. Survives a warm handoff; needs no RTC/BKP clocks.
+- **DB2 — Image validity:** vector-table sanity (initial SP in RAM, reset vector in the Exec
+  range — stored banks hold Exec-linked images) + region CRC32 recorded in settings.
+- **DB3 — Build structure:** standalone `bootloader/` project (own `platformio.ini`/ldscript/`src`),
+  not a second env — keeps the source trees unambiguous. Shared contract: `shared/Bootloader.h`.
+- **DB4 — Bootloader clock:** reuse the app's 8 MHz→100 MHz PLL so USART1 baud (115200) matches.
+
+## Gotchas / reference
+- **ELF-segment alignment:** ld's default `max-page-size` (0x10000) can round the first PT_LOAD
+  down and bake the ELF header into flash (it clobbered sector 0 when the app was at 0x08004000).
+  The app keeps `-Wl,-z,max-page-size=0x4000`; now moot since Exec (`0x08020000`) is 128 KB-aligned,
+  but kept as insurance. Linker-only edits need `pio run -t clean`.
+- **RS485 turnaround:** the bootloader has no pre-TX settle, so its first TX byte after a long RX
+  can be a `\xff`/dropped-byte glitch. The host (`dro_update.py`) tolerates it (reads the full
+  greeting frame, retries glitched commands); YMODEM (bootloader = receiver) is unaffected.
+- **BOOT0 hardware bug:** `HARDWARE.md` HW-1 — every app↔bootloader handoff jumps, never resets.
 
 ## Settings (shared/Settings.h — read by both, written by both)
 ```c
