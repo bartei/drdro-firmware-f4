@@ -33,16 +33,19 @@ jobs:
           path: |
             ~/.platformio
             ~/.cache/pip
-          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          key: pio-${{ runner.os }}-${{ hashFiles('app/platformio.ini', 'bootloader/platformio.ini') }}
           restore-keys: pio-${{ runner.os }}-
 
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
-      - name: Build firmware (version embedded)
+      - name: Build application (version embedded)
         env:
-          FW_VERSION: "v${{ steps.version.outputs.version }}"   # support/fw_version.py picks this up
-        run: pio run -e drdro_f411ce
+          FW_VERSION: "v${{ steps.version.outputs.version }}"   # app/support/fw_version.py picks this up
+        run: pio run -d app
+
+      - name: Build bootloader
+        run: pio run -d bootloader
 
       - name: Tag the release
         run: |
@@ -62,6 +65,9 @@ jobs:
           tag_name: "v${{ steps.version.outputs.version }}"
           generate_release_notes: true
           files: |
-            .pio/build/drdro_f411ce/firmware.bin
-            .pio/build/drdro_f411ce/firmware.hex
-            .pio/build/drdro_f411ce/firmware.elf
+            app/.pio/build/drdro_f411ce/firmware.bin
+            app/.pio/build/drdro_f411ce/firmware.hex
+            app/.pio/build/drdro_f411ce/firmware.elf
+            bootloader/.pio/build/bootloader/firmware.bin
+            bootloader/.pio/build/bootloader/firmware.hex
+            bootloader/.pio/build/bootloader/firmware.elf

@@ -19,7 +19,7 @@ shipped (`protocol_todo.md` Phase 5 done); this is the next milestone.
   `src/`, ldscript). *(Revised 2026-06-29 from "second env": the env approach needed a
   non-standard `src/bootloader/` + `build_src_filter` and was confusing. A separate project
   keeps the source trees unambiguous — root = app, `bootloader/` = bootloader. Shared contract
-  stays single-source via `../include/Bootloader.h`. As a clean `-Os` project the bootloader is
+  stays single-source via the top-level `shared/Bootloader.h` (both projects `-I ../shared`). As a clean `-Os` project the bootloader is
   ~4.3 KB, so it fits the 16 KB sector easily — no 32 KB expansion needed.)*
 - **DB4 — Bootloader clock:** **reuse the app's `SystemClock_Config`** (100 MHz PLL) so the USART1
   baud divisor matches the app exactly (115200).

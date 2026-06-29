@@ -7,17 +7,24 @@ remote machine — this file does). Detail lives in the linked docs.
 ## TL;DR
 PlatformIO firmware for the drDRO rotary controller (STM32F411CEU6). Migrated off
 STM32CubeIDE to PlatformIO + `stm32cube` framework. **Modbus has been fully replaced
-by a custom CLI-friendly line protocol** (`src/Protocol.c`), which is live. Build is
+by a custom CLI-friendly line protocol** (`app/src/Protocol.c`), which is live. Build is
 green. Next up: **verify the protocol on the test bench**, then build the firmware-
 update bootloader.
 
 ## Build / flash / test
+Two sibling PlatformIO projects: `app/` (firmware) and `bootloader/` (IAP). `shared/` holds the
+contract header. Pass `-d <dir>` (or `cd` in). On this host `pio` is not on PATH — see the local
+`~/.claude` memory; wrap commands in `nix-shell -p platformio --run '...'`.
 ```sh
-pio run                 # build  (env: drdro_f411ce)  → flash ~44 KB / RAM ~23 KB
-pio run -t upload       # flash via ST-Link
-pio test -e native      # host-side protocol unit tests (21 cases, no hardware)
-pio run -t compiledb    # regenerate compile_commands.json for clangd (gitignored)
+pio run -d app                 # build app (env: drdro_f411ce) → flash ~44 KB / RAM ~23 KB
+pio run -d app -t upload       # flash app via ST-Link (lives at 0x08004000)
+pio run -d bootloader          # build bootloader (~4.3 KB, sector 0 @ 0x08000000)
+pio run -d bootloader -t upload
+pio test -d app -e native      # host-side protocol unit tests (21 cases, no hardware)
 ```
+**Full board = bootloader @ 0x08000000 + app @ 0x08004000.** Flash both; the bootloader jumps to
+the app. **Verify after any flash:** `mdw 0x08000000` (openocd) must show the bootloader vectors,
+not `464c457f` ("\x7fELF") — see the B2 gotcha in `bootloader_todo.md`. Linker-only edits need `-t clean`.
 CI runs build + native tests on every push/PR (`.github/workflows/ci.yml`); pushes
 to `main` also semantic-version, tag, and publish a release with firmware artifacts
 (`release.yml`). Remote: `git@github.com:bartei/drdro-firmware-f4.git`.
@@ -52,39 +59,50 @@ Protocol details/grammar: `protocol_design.md`. Variable names: §A.4 there.
    - **Open bug — RS485 turnaround:** the first ~6–7 bytes of each response are corrupted
      (the leading *key* token; value+crc arrive clean), consistent with half-duplex RX→TX
      turnaround on the auto-direction transceiver (board and/or the PC USB-RS485 adapter).
-     Candidate fix: emit a sacrificial lead-in in `respBegin()` (`src/Protocol.c`, not
-     counted toward crc) and/or a short pre-TX settle delay; verify CRC end-to-end after.
+     Fixed: 2 ms pre-TX settle delay in `respBegin()` (`app/src/Protocol.c`). Verified clean.
    - Watch: a **self-echo guard** drops RX during TX. If responses look doubled or commands
-     get eaten on the bench, that's the first knob (`sTxActive` in `src/Protocol.c`).
-2. **Firmware-update bootloader** — custom IAP + YMODEM @115200 (design in `protocol_design.md`
-   Part B). Not started; give it its own `bootloader_todo.md` when starting.
-3. Optional: PlatformIO CI (GitHub Actions) + push to a remote; settings persistence to flash.
+     get eaten on the bench, that's the first knob (`sTxActive` in `app/src/Protocol.c`).
+2. **Firmware-update bootloader** — custom IAP + YMODEM @115200 (design `protocol_design.md` Part B;
+   plan/progress `bootloader_todo.md`). **B0–B2 done + HW-verified** (app relocation, `update` command,
+   bootloader boot/jump). **Next: B3** — flash erase/write driver + YMODEM receiver in the bootloader,
+   then a host updater. B4 = combined factory image + CI. (Branch: `feat/iap-bootloader`.)
+3. Optional: settings persistence to flash. (CI + remote: done.)
 
-## Repo map
-- `src/Protocol.c`, `include/Protocol.h` — the line protocol (RX ISR + service task + registry).
+## Repo map (two projects + shared/; docs at root)
+**`app/`** — the application PlatformIO project:
+- `src/Protocol.c`, `include/Protocol.h` — the line protocol (RX ISR + service task + registry; `update` cmd).
 - `src/Ramps.c`, `include/Ramps.h` — motion core (TIM9 ISR, ramps, scales). `rampsHandler_t.shared` is the protocol's register image.
-- `src/Scales.c` — encoder timer init. `src/main.c` — clock + peripheral init + entry.
+- `src/Scales.c` — encoder timer init. `src/main.c` — VTOR relocation + clock + peripheral init + entry.
 - `src/{gpio,tim,usart,stm32f4xx_it,stm32f4xx_hal_msp,stm32f4xx_hal_timebase_tim}.c` — peripheral glue (hand-maintained; **CubeMX is never regenerated**).
 - `lib/FreeRTOS/` — vendored kernel + CMSIS-RTOS v2 (`libArchive:false`, see gotchas).
-- `support/stm32_hardfloat.py`, `support/fw_version.py` — build extra scripts (see gotchas).
-- `STM32F411CEUX_FLASH.ld` — custom linker. `docs/` — frozen `.ioc` reference + RAM ld.
+- `support/stm32_hardfloat.py`, `support/fw_version.py`, `support/make_hex.py` — build extra scripts (see gotchas).
+- `STM32F411CEUX_FLASH_APP.ld` (app @ 0x08004000) + `STM32F411CEUX_FLASH.ld` (original 0-based, reference).
+- `test/` — native unit tests + `test/mocks/`.
+
+**`bootloader/`** — IAP bootloader project: `src/bl_main.c`, `STM32F411CEUX_FLASH_BOOT.ld` (sector 0 @ 0x08000000).
+**`shared/Bootloader.h`** — app↔bootloader contract (flash layout, handshake word); both projects `-I ../shared`.
+`docs/` — frozen `.ioc` reference + RAM ld.
 - Old project for reference: `../rotary-controller-f4` (branch `main`).
 
-## Gotchas (don't undo these — each was a real fix)
-- **`-D HSE_VALUE=8000000`** (in `platformio.ini` build_flags): the board crystal is 8 MHz,
-  but the stm32cube framework's `system_stm32f4xx.c`/HAL headers default `HSE_VALUE` to
-  **25 MHz**. Our `include/stm32f4xx_hal_conf.h` has 8 MHz but it's `#if !defined`-guarded
-  and loses when the framework compiles its own system file. Result without the flag:
+## Gotchas (don't undo these — each was a real fix). Paths are in `app/` unless noted.
+- **`-D HSE_VALUE=8000000`** (in `app/platformio.ini` build_flags; **also `bootloader/platformio.ini`**):
+  the board crystal is 8 MHz, but the stm32cube framework's `system_stm32f4xx.c`/HAL headers default
+  `HSE_VALUE` to **25 MHz**. Our `app/include/stm32f4xx_hal_conf.h` has 8 MHz but it's `#if !defined`-
+  guarded and loses when the framework compiles its own system file. Result without the flag:
   `SystemCoreClock` = 312.5 MHz (chip still runs at 100 MHz via literal PLL regs, but
   HAL computes `USART1_BRR` from the wrong clock → real baud ≈ 36.8 kbaud → all serial
   garbage). Verified fixed: `SystemCoreClock=0x05F5E100` (100 MHz), `BRR=0x364` (115200).
-- **Hard-float**: `support/stm32_hardfloat.py` applies `-mfloat-abi=hard -mfpu=fpv4-sp-d16`
-  to compile AND link; the board/framework default is soft-float, which breaks FreeRTOS `port.c`.
-- **`libArchive:false`** on `lib/FreeRTOS` (and was on Modbus): otherwise weak-symbol overrides
+- **App-only flash offset**: `app/platformio.ini` has `-Wl,-z,max-page-size=0x4000` — the app loads at
+  0x08004000 (not 64 KB-aligned), so ld's default would bake the ELF header into the first LOAD segment
+  and flashing the `.elf` would clobber the bootloader (B2 gotcha in `bootloader_todo.md`).
+- **Hard-float**: `app/support/stm32_hardfloat.py` applies `-mfloat-abi=hard -mfpu=fpv4-sp-d16` to
+  compile AND link; the board/framework default is soft-float, which breaks FreeRTOS `port.c`.
+  (The bootloader has no FreeRTOS → soft-float, no hard-float script.)
+- **`libArchive:false`** on `app/lib/FreeRTOS`: otherwise weak-symbol overrides
   (RTOS handlers / UART callbacks) get dropped from the archive.
-- **`-u _printf_float`** (in `platformio.ini`): needed for `%g` on the float vars under nano.specs.
+- **`-u _printf_float`** (in `app/platformio.ini`): needed for `%g` on the float vars under nano.specs.
 - **Don't add** `Drivers/`, `system_stm32f4xx.c`, or a startup `.s` — the framework provides them.
-- **`FreeRTOSConfig.h` / `stm32f4xx_hal_conf.h` live in `include/`** (globally visible to vendored libs).
+- **`FreeRTOSConfig.h` / `stm32f4xx_hal_conf.h` live in `app/include/`** (globally visible to vendored libs).
 - **RS485 is auto-direction** (no DE GPIO). **Baud is fixed at 115200** (circuit limit).
 - Platform pinned `ststm32@~19.4.0`.
 

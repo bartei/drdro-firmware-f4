@@ -26,24 +26,30 @@ jobs:
           path: |
             ~/.platformio
             ~/.cache/pip
-          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          key: pio-${{ runner.os }}-${{ hashFiles('app/platformio.ini', 'bootloader/platformio.ini') }}
           restore-keys: pio-${{ runner.os }}-
 
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
-      - name: Build firmware
-        run: pio run -e drdro_f411ce
+      - name: Build application
+        run: pio run -d app
+
+      - name: Build bootloader
+        run: pio run -d bootloader
 
       - name: Run native unit tests
-        run: pio test -e native
+        run: pio test -d app -e native
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
           name: firmware
           path: |
-            .pio/build/drdro_f411ce/firmware.elf
-            .pio/build/drdro_f411ce/firmware.bin
-            .pio/build/drdro_f411ce/firmware.hex
+            app/.pio/build/drdro_f411ce/firmware.elf
+            app/.pio/build/drdro_f411ce/firmware.bin
+            app/.pio/build/drdro_f411ce/firmware.hex
+            bootloader/.pio/build/bootloader/firmware.elf
+            bootloader/.pio/build/bootloader/firmware.bin
+            bootloader/.pio/build/bootloader/firmware.hex
           if-no-files-found: error

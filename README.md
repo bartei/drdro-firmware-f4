@@ -8,14 +8,21 @@ This is the PlatformIO successor to the STM32CubeIDE project `rotary-controller-
 
 ## Build & flash
 
+Two PlatformIO projects: **`app/`** (the firmware, runs at `0x08004000`) and
+**`bootloader/`** (IAP firmware-update bootloader, sector 0 `0x08000000`). `shared/`
+holds the app↔bootloader contract header. Pass `-d <dir>` (or `cd` into the project):
+
 ```sh
-pio run                 # build
-pio test -e native      # host-side protocol unit tests
-pio run -t upload       # flash via ST-Link
-pio run -t clean        # clean
+pio run -d app                 # build the application
+pio run -d bootloader          # build the bootloader
+pio test -d app -e native      # host-side protocol unit tests
+pio run -d app -t upload       # flash app via ST-Link
+pio run -d bootloader -t upload # flash bootloader
 ```
 
-Output: `.pio/build/drdro_f411ce/firmware.{elf,bin,hex}`.
+A full board = bootloader @ `0x08000000` + app @ `0x08004000` (flash both; the
+bootloader jumps to the app). Output: `app/.pio/build/drdro_f411ce/firmware.{elf,bin,hex}`
+and `bootloader/.pio/build/bootloader/firmware.{elf,bin,hex}`.
 
 ### Dev container
 A ready-to-use VS Code dev container (PlatformIO + STM32 toolchain + serial tools)
