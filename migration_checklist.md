@@ -33,11 +33,11 @@ One-liner progress tracker. Detail for each item lives in `migration_todo.md`.
 - [x] Commit working build
 
 ## Phase 4 — Hardware verification (handoff)
-- [ ] Flash via ST-Link
-- [ ] USR_LED + Modbus slave (addr 17 @115200)
-- [ ] Encoders, jog, indexing, sync motion, ENA timing
-- [ ] A/B vs shipping firmware
+- [x] Flash via ST-Link (also flashes cleanly over `nix-shell -p platformio`)
+- [~] USR_LED + comms — Modbus removed; comms now verified via the line protocol (see `protocol_todo.md` Phase 5)
+- [ ] Encoders, jog, indexing, sync motion, ENA timing — **still unverified on hardware**
+- [ ] A/B vs shipping firmware — motion path not yet exercised
 
-## Phase 5 — CI + remote (optional)
-- [ ] PlatformIO GitHub Actions (build + release)
-- [ ] Push to `drdro-firmware` remote
+## Phase 5 — CI + remote
+- [x] PlatformIO GitHub Actions (build + native tests `ci.yml`; semver tag + release `release.yml`)
+- [x] Push to remote (`git@github.com:bartei/drdro-firmware-f4.git`)

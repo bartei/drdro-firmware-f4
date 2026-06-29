@@ -18,7 +18,13 @@ checklist line.
 ## Target hardware / clock
 - MCU: STM32F411CEU6, Cortex-M4F, 512K flash / 128K RAM, UFQFPN48. Board: `genericSTM32F411CE`.
 - Clock: 8 MHz HSE → PLL (M=4, N=100, P=2) → 100 MHz SYSCLK; APB1=50 MHz, APB2=100 MHz, timer clocks 100 MHz. Flash latency 3, VOS scale 1.
-- `HSE_VALUE=8000000` and module enables come from our own `stm32f4xx_hal_conf.h`; `SystemClock_Config()` in `main.c` is explicit — board defaults don't affect the clock.
+- `SystemClock_Config()` in `main.c` is explicit (literal PLL register writes), so the chip
+  *runs* at 100 MHz regardless of `HSE_VALUE`. **But** `HSE_VALUE` feeds `SystemCoreClock`, which
+  HAL uses to compute peripheral divisors (e.g. USART baud). Our `stm32f4xx_hal_conf.h` sets
+  8 MHz **but it's `#if !defined`-guarded and loses** when the framework compiles its own
+  `system_stm32f4xx.c` (which defaults to 25 MHz) → `SystemCoreClock` = 312.5 MHz → USART1 baud
+  3.125× off. **Fix (2026-06-29, commit `bd90460`): force `-D HSE_VALUE=8000000` in `platformio.ini`.**
+  Module enables still come from our `stm32f4xx_hal_conf.h`.
 
 ## Peripheral map (preserve exactly)
 - TIM1/TIM2/TIM3/TIM4 — encoder mode TI12 (4 quadrature scales). Re-init'd by `Scales.c::initScaleTimer`.
@@ -95,6 +101,7 @@ lib/Modbus/    library.json  src/{Modbus,UARTCallback}.c  include/{Modbus,Modbus
 - Encoder counts on all 4 scales; jog (mode 2), indexing (mode 1), scale-sync motion; step/dir + ENA timing.
 - A/B against current shipping firmware.
 
-## CI / remote (Phase 5, optional)
-- Replace `release.yaml` cmake/make with `pio run`; keep PaulHatch semantic-version tagging + release of `firmware.{bin,hex,elf}` from `.pio/build/drdro_f411ce/`.
-- New GitHub remote `drdro-firmware`.
+## CI / remote (Phase 5) — DONE
+- `.github/workflows/ci.yml`: `pio run` + native tests on push/PR. `release.yml`: semantic-version
+  tag + release of `firmware.{bin,hex,elf}` from `.pio/build/drdro_f411ce/` on `main`.
+- Remote: `git@github.com:bartei/drdro-firmware-f4.git`.

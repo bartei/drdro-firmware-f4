@@ -138,7 +138,7 @@ NMEA-style, kept CLI-friendly:
 
 Examples:
 ```
-set servo.max 720*5E\n         (checksummed request)
+set servo.max 720*70\n         (checksummed request; XOR-8 of "set servo.max 720" = 0x70)
 → crc=00\n \n                  (empty success body; crc over "" then the line)
 sta\n                          (CLI request, no checksum — accepted)
 → scales.pos=12345,988,0,42\n scales.speed=10,-3,0,0\n crc=7A\n \n
