@@ -11,10 +11,14 @@
  * ProtocolFeedByte() so the logic compiles and runs alongside the Modbus stack.
  */
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stddef.h>
 #include "Protocol.h"
 
-/* ---- bound UART ---------------------------------------------------------- */
+/* ---- bound UART + shared data ------------------------------------------- */
 static UART_HandleTypeDef *sUart = NULL;
+static rampsSharedData_t  *sShared = NULL;
 
 /* ---- RX line assembly (CRLF-safe; preserves the deliberate empty-line repeat) */
 static char    sLine[PROTOCOL_LINE_MAX + 1];   /* in-progress line                */
@@ -74,11 +78,116 @@ static void cmdHelp(int argc, char **argv) {
   for (const cmd_t *c = kCommands; c->name; c++) respKV(c->name, c->help);
 }
 
-/* Registry-backed commands land in Phase 2/3. */
-static void cmdSta(int argc, char **argv)      { (void)argc; (void)argv; respError("not implemented"); }
-static void cmdSet(int argc, char **argv)      { (void)argc; (void)argv; respError("not implemented"); }
-static void cmdGet(int argc, char **argv)      { (void)argc; (void)argv; respError("not implemented"); }
-static void cmdSettings(int argc, char **argv) { (void)argc; (void)argv; respError("not implemented"); }
+/* ---- variable registry (array-aware) ------------------------------------ */
+typedef enum { VT_I32, VT_U32, VT_F32, VT_U16 } var_type_t;
+#define V_RO 1
+typedef struct {
+  const char *name;
+  size_t      offset;   /* byte offset of element [0] within rampsSharedData_t */
+  var_type_t  type;
+  uint8_t     count;    /* 1 = scalar, N = array */
+  uint16_t    stride;   /* bytes between array elements */
+  uint8_t     flags;    /* V_RO */
+} var_entry_t;
+
+#define OFF(f) offsetof(rampsSharedData_t, f)
+static const var_entry_t kVars[] = {
+  { "scales.pos",    OFF(scales[0].position),         VT_I32, 4, sizeof(input_t), 0    },
+  { "scales.speed",  OFF(scales[0].speed),            VT_I32, 4, sizeof(input_t), V_RO },
+  { "scales.num",    OFF(scales[0].syncRatioNum),     VT_I32, 4, sizeof(input_t), 0    },
+  { "scales.den",    OFF(scales[0].syncRatioDen),     VT_I32, 4, sizeof(input_t), 0    },
+  { "scales.sync",   OFF(scales[0].syncEnable),       VT_U16, 4, sizeof(input_t), 0    },
+  { "servo.max",     OFF(servo.maxSpeed),             VT_F32, 1, 0, 0    },
+  { "servo.acc",     OFF(servo.acceleration),         VT_F32, 1, 0, 0    },
+  { "servo.jog",     OFF(servo.jogSpeed),             VT_F32, 1, 0, 0    },
+  { "servo.mode",    OFF(fastData.servoMode),         VT_U16, 1, 0, 0    },
+  { "servo.pos",     OFF(servo.currentSteps),         VT_U32, 1, 0, V_RO },
+  { "servo.tgt",     OFF(servo.stepsToGo),            VT_I32, 1, 0, 0    },
+  { "diag.cycles",   OFF(fastData.cycles),            VT_U32, 1, 0, V_RO },
+  { "diag.interval", OFF(fastData.executionInterval), VT_U32, 1, 0, V_RO },
+  { NULL, 0, 0, 0, 0, 0 },
+};
+
+static const var_entry_t *findVar(const char *name) {
+  for (const var_entry_t *v = kVars; v->name; v++)
+    if (strcmp(name, v->name) == 0) return v;
+  return NULL;
+}
+static void *fieldPtr(const var_entry_t *v, int idx) {
+  return (uint8_t *)sShared + v->offset + (size_t)idx * v->stride;
+}
+static void formatField(const var_entry_t *v, int idx, char *out, size_t n) {
+  void *p = fieldPtr(v, idx);
+  switch (v->type) {
+    case VT_I32: snprintf(out, n, "%ld", (long)*(int32_t *)p); break;
+    case VT_U32: snprintf(out, n, "%lu", (unsigned long)*(uint32_t *)p); break;
+    case VT_U16: snprintf(out, n, "%u", (unsigned)*(uint16_t *)p); break;
+    case VT_F32: snprintf(out, n, "%g", (double)*(float *)p); break;
+  }
+}
+/* parse+store; returns 0 ok, -1 on parse/range error. 32-bit/16-bit aligned
+ * stores are atomic on M4 vs the TIM9 ISR, so no lock is needed (design A.5). */
+static int writeField(const var_entry_t *v, int idx, const char *s) {
+  void *p = fieldPtr(v, idx);
+  char *end = NULL;
+  switch (v->type) {
+    case VT_I32: { long  x = strtol(s, &end, 0);  if (*end) return -1; *(int32_t  *)p = (int32_t)x;  break; }
+    case VT_U32: { unsigned long x = strtoul(s, &end, 0); if (*end) return -1; *(uint32_t *)p = (uint32_t)x; break; }
+    case VT_U16: { unsigned long x = strtoul(s, &end, 0); if (*end || x > 0xFFFF) return -1; *(uint16_t *)p = (uint16_t)x; break; }
+    case VT_F32: { float x = strtof(s, &end);     if (*end) return -1; *(float    *)p = x;           break; }
+  }
+  return 0;
+}
+static void emitVar(const var_entry_t *v) {
+  char val[24];
+  txStr(v->name); txStr("=");
+  for (int i = 0; i < v->count; i++) {
+    if (i) txStr(",");
+    formatField(v, i, val, sizeof(val));
+    txStr(val);
+  }
+  txStr("\n");
+}
+
+/* ---- registry-backed commands ------------------------------------------- */
+static void cmdGet(int argc, char **argv) {
+  if (argc < 2) { respError("usage: get <name>"); return; }
+  const var_entry_t *v = findVar(argv[1]);
+  if (!v) { respError("unknown variable"); return; }
+  emitVar(v);
+}
+static void cmdSettings(int argc, char **argv) {
+  (void)argc; (void)argv;
+  for (const var_entry_t *v = kVars; v->name; v++) emitVar(v);
+}
+static void cmdSet(int argc, char **argv) {
+  if (argc < 2) { respError("usage: set <name> [idx] <value>"); return; }
+  const var_entry_t *v = findVar(argv[1]);
+  if (!v) { respError("unknown variable"); return; }
+  if (v->flags & V_RO) { respError("read-only"); return; }
+
+  int idx = 0;
+  const char *valStr;
+  if (v->count > 1) {                        /* array: need <idx> <value> */
+    if (argc < 4) { respError("usage: set <name> <idx> <value>"); return; }
+    char *end = NULL;
+    long i = strtol(argv[2], &end, 10);
+    if (*end || i < 0 || i >= v->count) { respError("bad index"); return; }
+    idx = (int)i; valStr = argv[3];
+  } else {                                    /* scalar: <value> */
+    if (argc < 3) { respError("usage: set <name> <value>"); return; }
+    valStr = argv[2];
+  }
+  if (writeField(v, idx, valStr) != 0) { respError("value out of range"); return; }
+  /* success: no body line; respEnd() emits crc + empty line */
+}
+static void cmdSta(int argc, char **argv) {
+  (void)argc; (void)argv;
+  const var_entry_t *pos = findVar("scales.pos");
+  const var_entry_t *spd = findVar("scales.speed");
+  if (pos) emitVar(pos);
+  if (spd) emitVar(spd);
+}
 
 static const cmd_t kCommands[] = {
   { "sta",      cmdSta,      "fast read: scale positions + speeds" },
@@ -155,8 +264,9 @@ void ProtocolService(void) {
   ProtocolProcessLine(sReady);
 }
 
-void ProtocolStart(UART_HandleTypeDef *huart) {
+void ProtocolStart(UART_HandleTypeDef *huart, rampsSharedData_t *shared) {
   sUart = huart;
+  sShared = shared;
   sLen = 0; sPendEOL = 0; sReadyFlag = 0;
   sLine[0] = '\0'; sReady[0] = '\0'; sLast[0] = '\0';
 }

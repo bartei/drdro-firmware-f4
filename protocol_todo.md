@@ -14,15 +14,15 @@ doc (`bootloader_todo.md`), after this.
 - [x] `help` (command-table walk)
 - [x] Empty-line repeat (store last line)
 
-## Phase 2 — Variable registry (array-aware) [needs final names]
-- [ ] Finalize dotted variable names (design A.4)
-- [ ] `var_entry_t` table (base/type/count/stride/flags)
-- [ ] `set <name> [idx] <value>` (typed parse + range checks)
-- [ ] `get <name>` (whole variable, grouped line)
-- [ ] `settings` (dump all)
+## Phase 2 — Variable registry (array-aware)
+- [x] Finalize dotted variable names (design A.4) — approved
+- [x] `var_entry_t` table (offset/type/count/stride/flags)
+- [x] `set <name> [idx] <value>` (typed parse + range checks)
+- [x] `get <name>` (whole variable, grouped line)
+- [x] `settings` (dump all)
 
 ## Phase 3 — Fast read
-- [ ] `sta` → `scales.pos` + `scales.speed` (grouped lines)
+- [x] `sta` → `scales.pos` + `scales.speed` (grouped lines)
 
 ## Phase 4 — Switchover to Protocol (atomic; remove Modbus)
 - [ ] Protocol task owns USART1: byte-IT RX → line buffer + `HAL_UART_RxCpltCallback`

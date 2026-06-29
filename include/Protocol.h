@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 #include "stm32f4xx_hal.h"
+#include "Ramps.h"                 /* rampsSharedData_t (the variable registry target) */
 
 #ifndef FW_VERSION
 #define FW_VERSION "dev"           /* overridden at build time by support/fw_version.py */
@@ -18,8 +19,9 @@
 
 #define PROTOCOL_LINE_MAX 128      /* max command line length (excl. terminator) */
 
-/** Bind the UART used for TX/RX. (Task + RX IT are wired at the Modbus switchover.) */
-void ProtocolStart(UART_HandleTypeDef *huart);
+/** Bind the UART (TX/RX) and the shared-data block the registry reads/writes.
+ *  (Task + RX IT are wired at the Modbus switchover.) */
+void ProtocolStart(UART_HandleTypeDef *huart, rampsSharedData_t *shared);
 
 /** Feed one received byte; assembles a line and flags it ready on \r / \n.
  *  Safe to call from the UART RX ISR (no blocking, no response emitted here). */

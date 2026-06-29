@@ -124,7 +124,7 @@ Modbus (no UART callbacks), then do the UART hand-off as one atomic switchover.
 *Optional* if a switchable build is ever wanted: `-D COMM_PROTOCOL` / `-D COMM_MODBUS`
 build flag + per-env `lib_ignore = Modbus` (two PlatformIO envs via `extends`).
 
-### A.8 Message checksum (PROPOSED — confirm D9)
+### A.8 Message checksum (CONFIRMED)
 NMEA-style, kept CLI-friendly:
 - **Algorithm:** XOR-8 of the message body bytes, 2 hex digits, uppercase
   (e.g. `1A`). *(Alternative: CRC-8 / CRC-16-CCITT for stronger detection.)*
@@ -145,9 +145,6 @@ sta\n                          (CLI request, no checksum — accepted)
 set servo.max 720*FF\n
 → error=bad checksum\n crc=..\n \n
 ```
-
-**Open (D9):** algorithm = XOR-8 (proposed) vs CRC-8/16; request checksum
-**optional** (proposed, CLI-friendly) vs **mandatory**.
 
 ---
 
@@ -215,9 +212,10 @@ no DE GPIO, no hardware change. Applies to both protocol TX and bootloader TX.
 - **D8 — Modbus vs Protocol:** never coexist at runtime; **clean replacement**
   (git keeps the Modbus build as fallback); optional `-D COMM_*` toggle if a
   switchable build is ever wanted.
-- **D9 — Checksum (PROPOSED):** XOR-8 hex; `*HH` suffix optional on requests
-  (CLI-friendly), `crc=HH` line always on responses. *Confirm algorithm strength &
-  optional-vs-mandatory.*
+- **D9 — Checksum:** XOR-8 hex; `*HH` suffix **optional** on requests (CLI-friendly),
+  `crc=HH` line always on responses.
+- **Names:** proposed dotted scheme (A.4) **approved**. Note: `scales.sync` and
+  `servo.mode` are stored `uint16_t` (sync = 0/1).
 
 ## Parking lot (future, not now — "FFI")
 - **Multi-board addressing:** prefix requests with an address (`<addr><command>\n`).
