@@ -16,97 +16,111 @@ line protocol over RS485, and later add firmware update over the same bus.
   `\r`, `\n`, or both.
 - Each **response** is zero or more `key=value` lines (`\n`-separated) followed by a
   **terminating empty line** (a lone `\n`). Errors carry an `error=<reason>` line.
+- **Array variables are returned as one grouped line:** `group.field=v0,v1,v2,v3`
+  (full dotted name kept; values comma-joined). Scalars: `group.field=v`.
 - Single device on the bus → **no addressing** (future: see Parking lot).
 - **Bandwidth-conscious:** no literal `ok` token, no firmware echo, 115200 fixed.
 
 ### A.2 Commands (initial set)
 | Command | Args | Action | Response |
 |---|---|---|---|
-| `sta` | — | Fast read: scale positions + speeds (tight poll loop). | scale `key=value` lines + empty line |
-| `set` | `<variable> <value>` | Set a configured variable. | empty line (or `error=…`) |
-| `get` | `<variable>` | Read one variable. | `<var>=<value>` + empty line |
+| `sta` | — | Fast read: scale positions + speeds (tight poll loop). | `scales.pos=…` + `scales.speed=…` + empty line |
+| `set` | `<name> [idx] <value>` | Set a variable (idx required for arrays). | empty line (or `error=…`) |
+| `get` | `<name>` | Read a whole variable. | `<name>=<v[,v…]>` + empty line |
 | `settings` | — | Dump every configured variable. | all `key=value` lines + empty line |
 | `version` | — | Firmware version. | `version=<…>` + empty line |
 | `help` | — | List all commands. | one line per command + empty line |
 | *(empty)* `\n` | — | Repeat the previous command (1-byte re-poll). | same as repeated command |
 
-`set`/`get` cover all configurable options (sync ratios, scale positions, scale
-ratios, servo enable, max speed, acceleration, mode…). Extend = add a variable row
-or a command row. *(`update` command is added in the bootloader phase.)*
+`set`/`get` cover all configurable options. Extend = add a variable row or a command
+row. *(`update` command added in the bootloader phase.)*
 
 ### A.3 Framing & syntax (CONFIRMED)
 - **Terminator = an empty line** (`\n` on its own). Client rule: read lines until a
   blank line; that completes the response. (No literal `ok`.)
-- **Errors:** an `error=<reason>` line appears in the body; the response still ends
-  with the empty line. Presence of `error=` = failure.
-- **Separator:** `key=value` (trivial `dict(line.split('=',1) …)` in Python).
-- **Keys = exact variable names, 1:1** (no per-command terse aliases). Bandwidth is
-  saved by keeping the *canonical variable names themselves short* (see A.4) — same
-  key in `sta`, `get`, and `settings` so the client parses one stable namespace.
+- **Errors:** an `error=<reason>` line in the body; the response still ends with the
+  empty line. Presence of `error=` = failure.
+- **Separator:** `key=value`. **Arrays:** comma-joined values on one line.
+- **Keys = exact dotted variable names, 1:1** across `sta`/`get`/`settings`.
 
 Example:
 ```
 sta\n
-→ sc0=12345\n sc0_speed=10\n sc1=988\n sc1_speed=-3\n
-  sc2=0\n sc2_speed=0\n sc3=42\n sc3_speed=0\n \n
-\n                         (repeat)
-→ sc0=12361\n sc0_speed=11\n … \n \n
-set sc0_sync 1\n
-→ \n                      (success: just the empty line)
-set sc0_den 0\n
+→ scales.pos=12345,988,0,42\n scales.speed=10,-3,0,0\n \n
+\n                              (repeat)
+→ scales.pos=12361,990,0,42\n scales.speed=11,-2,0,0\n \n
+get servo.max\n
+→ servo.max=720.0\n \n
+set scales.sync 0 1\n           (scale 0 sync = on)
+→ \n
+set scales.den 0 0\n
 → error=value out of range\n \n
 ```
 
 ### A.4 Variable registry (core of `set`/`get`/`settings`/`help`)
-One table drives everything (named, typed, self-documenting, easy to extend):
+One **array-aware** table drives everything:
 ```c
 typedef enum { VT_I32, VT_U32, VT_F32, VT_BOOL } var_type_t;
 typedef struct {
-    const char *name;   // short canonical name == response key
-    void       *ptr;    // -> field in rampsHandler_t.shared
+    const char *name;    // dotted, e.g. "scales.pos"
+    void       *base;    // address of element [0]'s field
     var_type_t  type;
-    uint8_t     flags;  // bit0: READONLY, bit1: grouped (needs critical section)
+    uint8_t     count;   // 1 = scalar, N = array
+    uint16_t    stride;  // bytes between elements (e.g. sizeof(input_t))
+    uint8_t     flags;   // bit0: READONLY
 } var_entry_t;
 ```
+- `get`/`settings`: walk `count`, read each element at `base + i*stride`, join with `,`.
+- `set <name> [idx] <value>`: `idx` required when `count > 1`; write `base + idx*stride`.
+- `help`/`settings` = table walks.
 
-**Proposed variable names** (short canonical; *finalize in todo Phase 1*). `N` = scale 0–3.
-| Name | Type | RW | Maps to (`shared…`) |
-|---|---|---|---|
-| `scN` | i32 | RW | `scales[N].position` (write = set current position) |
-| `scN_speed` | i32 | RO | `scales[N].speed` |
-| `scN_num` | i32 | RW | `scales[N].syncRatioNum` ⟵ grouped |
-| `scN_den` | i32 | RW | `scales[N].syncRatioDen` ⟵ grouped |
-| `scN_sync` | bool | RW | `scales[N].syncEnable` |
-| `sv_max` | f32 | RW | `servo.maxSpeed` |
-| `sv_acc` | f32 | RW | `servo.acceleration` |
-| `sv_jog` | f32 | RW | `servo.jogSpeed` |
-| `sv_mode` | u16 | RW | `fastData.servoMode` (0=off,1=sync/index,2=jog) |
-| `sv_pos` | u32 | RO | `servo.currentSteps` |
-| `sv_tgt` | i32 | RW | `servo.stepsToGo` (write = start indexed move) |
-| `cycles` | u32 | RO | `fastData.cycles` |
-| `interval` | u32 | RO | `fastData.executionInterval` |
+**Proposed names** (dotted, short; *finalize before Phase 2*). `N` = scale 0–3.
+| Name | Type | Count | RW | Maps to (`shared…`) |
+|---|---|---|---|---|
+| `scales.pos` | i32 | 4 | RW | `scales[N].position` (write = set current pos) |
+| `scales.speed` | i32 | 4 | RO | `scales[N].speed` |
+| `scales.num` | i32 | 4 | RW | `scales[N].syncRatioNum` |
+| `scales.den` | i32 | 4 | RW | `scales[N].syncRatioDen` |
+| `scales.sync` | bool | 4 | RW | `scales[N].syncEnable` |
+| `servo.max` | f32 | 1 | RW | `servo.maxSpeed` |
+| `servo.acc` | f32 | 1 | RW | `servo.acceleration` |
+| `servo.jog` | f32 | 1 | RW | `servo.jogSpeed` |
+| `servo.mode` | u16 | 1 | RW | `fastData.servoMode` (0=off,1=sync/index,2=jog) |
+| `servo.pos` | u32 | 1 | RO | `servo.currentSteps` |
+| `servo.tgt` | i32 | 1 | RW | `servo.stepsToGo` (write = start indexed move) |
+| `diag.cycles` | u32 | 1 | RO | `fastData.cycles` |
+| `diag.interval` | u32 | 1 | RO | `fastData.executionInterval` |
 
-`sta` returns the fast set: `scN` + `scN_speed` for N=0..3 (same keys as above).
+`sta` = `scales.pos` + `scales.speed` (same keys/source as `get`).
 
 ### A.5 Concurrency (CONFIRMED approach)
 TIM9 ISR touches `shared` at high rate while `set` writes from the command task.
-- 32-bit aligned scalars (int/float/bool) are atomic on M4 → single-field `set` safe.
-- **Grouped fields** (`scN_num`+`scN_den`) → short critical section (mask TIM9 IRQ)
-  so the ISR never sees a torn ratio. Marked via `flags` bit1.
+- 32-bit aligned scalars (int/float/bool) are atomic on M4 → single-field `set` safe;
+  no lock needed.
+- Cross-field coherence (e.g. `scales.num`+`scales.den` together) isn't atomic across
+  two `set` commands; ratios are set at config time so a 1-cycle transient is
+  acceptable. If ever needed, add a combined `set scales.ratio <idx> <num> <den>`.
 
 ### A.6 `version` source
 Build-time inject via PlatformIO extra script (`-D FW_VERSION="v…"`), from
 `git describe`, reusing the old semantic-version scheme.
 
 ### A.7 Architecture / file impact
-- **Remove:** `lib/Modbus/`, `UARTCallback.c`, `ModbusConfig.h`, the Modbus
-  init/task in `Ramps.c`.
 - **Add:** first-party `src/Protocol.c` + `include/Protocol.h`: one FreeRTOS task
   owning USART1 — byte-IT RX into a line buffer, dispatch on `\r`/`\n`, store last
-  line for `\n`-repeat, command table + variable table, TX helper.
-- **RX:** per-byte interrupt at 115200 (~87 µs/byte) is plenty. **TX:** auto-direction
-  transceiver → no DE pin to toggle.
-- Net code shrink vs the Modbus stack.
+  line for `\n`-repeat, command table + array-aware variable table, TX helper.
+- **RX:** per-byte interrupt at 115200 (~87 µs/byte) is plenty. **TX:** blocking
+  `HAL_UART_Transmit` (short responses); auto-direction transceiver → no DE pin.
+- **Remove (at switchover):** `lib/Modbus/`, `UARTCallback.c`, `ModbusConfig.h`, the
+  Modbus include in `Ramps.h`, the Modbus init/task in `Ramps.c`; decouple the LED
+  activity counter from `RampsModbusData.u16InCnt`.
+
+**Modbus ↔ Protocol selection (CONFIRMED):** they never coexist at runtime. Plan =
+**clean replacement** (git keeps the working Modbus build at commit `b4f1b77` as a
+flashable fallback). Dev strategy to stay green: build Protocol *logic* alongside
+Modbus (no UART callbacks), then do the UART hand-off as one atomic switchover.
+*Optional* if a switchable build is ever wanted: `-D COMM_PROTOCOL` / `-D COMM_MODBUS`
+build flag + per-env `lib_ignore = Modbus` (two PlatformIO envs via `extends`).
 
 ---
 
@@ -149,8 +163,7 @@ Build-time inject via PlatformIO extra script (`-D FW_VERSION="v…"`), from
 ### B.6 Notes
 - **Baud locked at 115200** — current circuit can't go faster; will raise on new
   boards. (Sets the floor on transfer time.)
-- Keep the bootloader minimal/self-contained (register-level or tiny HAL subset) for
-  robustness.
+- Keep the bootloader minimal/self-contained for robustness.
 
 ---
 
@@ -164,16 +177,22 @@ no DE GPIO, no hardware change. Applies to both protocol TX and bootloader TX.
 ## Confirmed decisions
 - **D1 — Framing:** terminating **empty line** for success; `error=<reason>` on
   failure. No literal `ok`.
-- **D2 — Syntax:** `key=value`; **no per-command terse keys** — keep response keys
-  1:1 with variable names (Python-parseable); shorten the canonical names in code.
+- **D2 — Syntax:** `key=value`; dotted variable names; keys 1:1 with variables.
 - **D3 — RS485:** **auto-direction** transceiver; no DE GPIO.
 - **D4 — Bootloader:** custom IAP + **YMODEM**, **115200 max**.
 - **D5 — `get <variable>`:** yes (symmetry with `set`).
 - **D6 — Build order:** **protocol first**, bootloader second.
+- **D7 — Response format:** array variables returned as one grouped line
+  `name=v0,v1,…`; `get` returns the whole variable, `set <name> [idx] <value>`
+  targets one element; registry is array-aware.
+- **D8 — Modbus vs Protocol:** never coexist at runtime; **clean replacement**
+  (git keeps the Modbus build as fallback); optional `-D COMM_*` toggle if a
+  switchable build is ever wanted.
 
 ## Parking lot (future, not now — "FFI")
 - **Multi-board addressing:** prefix requests with an address (`<addr><command>\n`).
-- **CLI echo:** **local echo only** (client terminal) — no firmware echo, saves
-  bandwidth.
+- **CLI echo:** **local echo only** (client terminal) — no firmware echo.
 - **Higher baud:** locked to 115200 for now; new boards will go faster.
 - **Settings persistence to flash:** wanted, but not immediate.
+- **Combined ratio setter:** `set scales.ratio <idx> <num> <den>` if atomic num/den
+  updates are ever needed.

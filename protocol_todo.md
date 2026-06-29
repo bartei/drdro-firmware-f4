@@ -3,38 +3,34 @@
 Phased progress tracker. Detail in `protocol_design.md`. Bootloader is a separate
 doc (`bootloader_todo.md`), after this.
 
-## Phase 1 — Scaffold & transport
-- [ ] Finalize variable name list (design A.4 table)
-- [ ] Add `include/Protocol.h` + `src/Protocol.c`
-- [ ] USART1 byte-IT RX → line buffer
-- [ ] Line assembly on `\r` / `\n`
-- [ ] Protocol FreeRTOS task
-- [ ] TX helper (write lines + terminator; auto-direction, no DE)
-
-## Phase 2 — Dispatch & core commands
-- [ ] Tokenizer + command table + dispatcher
-- [ ] Empty-line repeat (store last line)
-- [ ] `version` (build-time `FW_VERSION` via git)
+## Phase 1 — Protocol core (compiles alongside Modbus; callback-free)
+- [ ] `include/Protocol.h` + `src/Protocol.c` skeleton
+- [ ] Line buffer + tokenizer
+- [ ] Command table + dispatcher
+- [ ] Response builder (empty-line framing, `error=`)
+- [ ] TX helper (blocking `HAL_UART_Transmit`; auto-direction)
+- [ ] `version` (build-time `FW_VERSION` via git extra script)
 - [ ] `help` (command-table walk)
-- [ ] Empty-line success framing + `error=` handling
+- [ ] Empty-line repeat (store last line)
 
-## Phase 3 — Variable registry
-- [ ] `var_entry_t` table mapping `shared` fields
-- [ ] `set <var> <value>` (typed parse + range checks)
-- [ ] `get <var>`
+## Phase 2 — Variable registry (array-aware) [needs final names]
+- [ ] Finalize dotted variable names (design A.4)
+- [ ] `var_entry_t` table (base/type/count/stride/flags)
+- [ ] `set <name> [idx] <value>` (typed parse + range checks)
+- [ ] `get <name>` (whole variable, grouped line)
 - [ ] `settings` (dump all)
-- [ ] Critical section for grouped sets (num/den)
 
-## Phase 4 — Fast read
-- [ ] `sta` → scale positions + speeds (1:1 keys)
+## Phase 3 — Fast read
+- [ ] `sta` → `scales.pos` + `scales.speed` (grouped lines)
 
-## Phase 5 — Remove Modbus & integrate
-- [ ] Delete `lib/Modbus`, `UARTCallback.c`, `ModbusConfig.h`
-- [ ] Strip Modbus init/task from `Ramps.c`
-- [ ] Wire Protocol init in `RampsStart`
+## Phase 4 — Switchover to Protocol (atomic; remove Modbus)
+- [ ] Protocol task owns USART1: byte-IT RX → line buffer + `HAL_UART_RxCpltCallback`
+- [ ] Decouple LED activity counter from Modbus
+- [ ] Wire `ProtocolStart` in `RampsStart`; remove Modbus init/task
+- [ ] Delete `lib/Modbus`, `UARTCallback.c`, `ModbusConfig.h`; strip `Modbus.h` from `Ramps.h`
 - [ ] Green build + size check
 
-## Phase 6 — Verify (hardware handoff)
+## Phase 5 — Verify (hardware handoff)
 - [ ] `sta` / `set` / `get` / `settings` / `version` / `help` over RS485
 - [ ] Empty-line repeat + error cases
 - [ ] A/B vs Modbus behavior
