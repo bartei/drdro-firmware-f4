@@ -19,12 +19,10 @@
 #define THIRD_PARTY_RAMPS_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "stm32f4xx_hal.h"
 #include "cmsis_os2.h"
-#include "Modbus.h"
 #include "Scales.h"
-
-#define MODBUS_ADDRESS 17
 
 #define STEP_PIN GPIO_PIN_0
 #define STEP_GPIO_PORT GPIOA
@@ -100,12 +98,12 @@ typedef struct {
 
 
 typedef struct {
-  // Modbus shared data
+  // Comm shared data (protocol register image)
   rampsSharedData_t shared;
 
   // STM32 Related
   TIM_HandleTypeDef *synchroRefreshTimer;
-  UART_HandleTypeDef *modbusUart;
+  UART_HandleTypeDef *commUart;
 
   deltaPosError_t scalesDeltaPos[SCALES_COUNT];
   deltaPosError_t scalesSyncDeltaPos[SCALES_COUNT];
@@ -113,8 +111,6 @@ typedef struct {
   deltaPosError_t rampsDeltaPos;
   uint32_t servoPreviousDirection;
 } rampsHandler_t;
-
-extern modbusHandler_t RampsModbusData;
 
 void RampsStart(rampsHandler_t *rampsData);
 
@@ -125,8 +121,5 @@ _Noreturn void updateSpeedTask(void *argument);
 _Noreturn void userLedTask(__attribute__((unused)) void *argument);
 
 _Noreturn void servoEnableTask(void *argument);
-
-static void timServoEnableOnCallback(xTimerHandle pxTimer);
-static void timServoEnableOffCallback(xTimerHandle pxTimer);
 
 #endif

@@ -25,11 +25,11 @@ doc (`bootloader_todo.md`), after this.
 - [x] `sta` → `scales.pos` + `scales.speed` (grouped lines)
 
 ## Phase 4 — Switchover to Protocol (atomic; remove Modbus)
-- [ ] Protocol task owns USART1: byte-IT RX → line buffer + `HAL_UART_RxCpltCallback`
-- [ ] Decouple LED activity counter from Modbus
-- [ ] Wire `ProtocolStart` in `RampsStart`; remove Modbus init/task
-- [ ] Delete `lib/Modbus`, `UARTCallback.c`, `ModbusConfig.h`; strip `Modbus.h` from `Ramps.h`
-- [ ] Green build + size check
+- [x] Protocol task owns USART1: byte-IT RX → line buffer + `HAL_UART_RxCpltCallback`
+- [x] Decouple LED activity counter from Modbus (`ProtocolActivity()`)
+- [x] Wire `ProtocolStart` in `RampsStart`; remove Modbus init/task; rename `modbusUart`→`commUart`
+- [x] Delete `lib/Modbus`, `UARTCallback.c`, `ModbusConfig.h`; strip `Modbus.h` from `Ramps.h`
+- [x] Green build + size check (flash 44.5 KB; symbols verified)
 
 ## Phase 5 — Verify (hardware handoff)
 - [ ] `sta` / `set` / `get` / `settings` / `version` / `help` over RS485

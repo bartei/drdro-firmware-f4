@@ -106,7 +106,7 @@ int main(void)
   RampsData.shared.scales[2].timerHandle = &htim3;
   RampsData.shared.scales[3].timerHandle = &htim4;
   RampsData.synchroRefreshTimer = &htim9;
-  RampsData.modbusUart = &huart1;
+  RampsData.commUart = &huart1;
   RampsStart(&RampsData);
 
   /* USER CODE END 2 */

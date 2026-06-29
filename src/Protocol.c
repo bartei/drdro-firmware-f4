@@ -2,23 +2,34 @@
  * Copyright © 2026 <Stefano Bertelli>
  * MIT.
  *
- * drDRO line protocol — transport-independent core (Phase 1).
- * Command in (text, \r/\n/both terminated) → key=value lines out, terminated by an
- * empty line. Errors carry an `error=<reason>` line. See protocol_design.md.
+ * drDRO line protocol (replaces Modbus). Command in (text, \r/\n/both terminated)
+ * → key=value lines out, terminated by an empty line; errors carry `error=<reason>`.
+ * See protocol_design.md.
  *
- * The USART1 RX interrupt + FreeRTOS task that drive this are wired at the Modbus
- * switchover (Phase 4); here TX is blocking and RX is fed byte-by-byte via
- * ProtocolFeedByte() so the logic compiles and runs alongside the Modbus stack.
+ * ProtocolStart() owns USART1: byte-IT RX feeds ProtocolFeedByte() (ISR), which
+ * wakes a FreeRTOS service task on a complete line; the task parses, dispatches,
+ * and writes the response with blocking TX (auto-direction RS485, no DE pin).
  */
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
+#include "cmsis_os2.h"
 #include "Protocol.h"
 
 /* ---- bound UART + shared data ------------------------------------------- */
 static UART_HandleTypeDef *sUart = NULL;
 static rampsSharedData_t  *sShared = NULL;
+
+/* ---- RX task + activity ------------------------------------------------- */
+static uint8_t           sRxByte;
+static volatile uint8_t  sTxActive = 0;   /* drop self-echo while transmitting   */
+static volatile uint32_t sRxLines  = 0;   /* processed-command counter (LED blink) */
+static osThreadId_t      sTask = NULL;
+static const osThreadAttr_t kProtoTaskAttr = {
+  .name = "protocol", .stack_size = 512 * 4, .priority = (osPriority_t) osPriorityNormal,
+};
+static void protocolTask(void *arg);
 
 /* ---- RX line assembly (CRLF-safe; preserves the deliberate empty-line repeat) */
 static char    sLine[PROTOCOL_LINE_MAX + 1];   /* in-progress line                */
@@ -261,12 +272,37 @@ uint8_t ProtocolLineReady(void) { return sReadyFlag; }
 void ProtocolService(void) {
   if (!sReadyFlag) return;
   sReadyFlag = 0;
+  sTxActive = 1;                       /* ignore self-echo during the response   */
   ProtocolProcessLine(sReady);
+  sTxActive = 0;
+  sRxLines++;                          /* command processed → blink the LED       */
+}
+
+uint32_t ProtocolActivity(void) { return sRxLines; }
+
+/* RX interrupt: one byte at a time → line buffer; wake the task on a full line. */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+  if (huart != sUart) return;
+  uint8_t b = sRxByte;
+  HAL_UART_Receive_IT(sUart, &sRxByte, 1);    /* re-arm immediately               */
+  if (sTxActive) return;                       /* drop our own transmitted echo    */
+  ProtocolFeedByte(b);
+  if (sReadyFlag) osThreadFlagsSet(sTask, 0x01U);
+}
+
+static void protocolTask(void *arg) {
+  (void)arg;
+  HAL_UART_Receive_IT(sUart, &sRxByte, 1);
+  for (;;) {
+    osThreadFlagsWait(0x01U, osFlagsWaitAny, osWaitForever);
+    ProtocolService();
+  }
 }
 
 void ProtocolStart(UART_HandleTypeDef *huart, rampsSharedData_t *shared) {
   sUart = huart;
   sShared = shared;
-  sLen = 0; sPendEOL = 0; sReadyFlag = 0;
+  sLen = 0; sPendEOL = 0; sReadyFlag = 0; sTxActive = 0; sRxLines = 0;
   sLine[0] = '\0'; sReady[0] = '\0'; sLast[0] = '\0';
+  sTask = osThreadNew(protocolTask, NULL, &kProtoTaskAttr);
 }

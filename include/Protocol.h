@@ -19,9 +19,12 @@
 
 #define PROTOCOL_LINE_MAX 128      /* max command line length (excl. terminator) */
 
-/** Bind the UART (TX/RX) and the shared-data block the registry reads/writes.
- *  (Task + RX IT are wired at the Modbus switchover.) */
+/** Bind the UART (TX/RX) + shared-data block, start byte-IT RX and the service
+ *  task. Call once from RampsStart(). */
 void ProtocolStart(UART_HandleTypeDef *huart, rampsSharedData_t *shared);
+
+/** Count of processed commands — used by the LED task as a comm-activity tick. */
+uint32_t ProtocolActivity(void);
 
 /** Feed one received byte; assembles a line and flags it ready on \r / \n.
  *  Safe to call from the UART RX ISR (no blocking, no response emitted here). */

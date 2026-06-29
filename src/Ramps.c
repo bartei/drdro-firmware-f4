@@ -18,10 +18,8 @@
 #include <math.h>
 #include "Ramps.h"
 #include "Scales.h"
+#include "Protocol.h"
 
-
-// This variable is the handler for the modbus communication
-modbusHandler_t RampsModbusData;
 
 uint16_t servoCycles = 0;
 uint16_t servoCyclesCounter = 0;
@@ -101,17 +99,8 @@ void RampsStart(rampsHandler_t *rampsData) {
   DWT->CYCCNT = 0;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
-  // Start Modbus
-  RampsModbusData.uModbusType = MB_SLAVE;
-  RampsModbusData.port = rampsData->modbusUart;
-  RampsModbusData.u8id = MODBUS_ADDRESS;
-  RampsModbusData.u16timeOut = 1000;
-  RampsModbusData.EN_Port = NULL;
-  RampsModbusData.u16regs = (uint16_t *) (&rampsData->shared);
-  RampsModbusData.u16regsize = sizeof(rampsData->shared) / sizeof(uint16_t);
-  RampsModbusData.xTypeHW = USART_HW;
-  ModbusInit(&RampsModbusData);
-  ModbusStart(&RampsModbusData);
+  // Start the line protocol (replaces Modbus): owns USART1 RX + a service task
+  ProtocolStart(rampsData->commUart, &rampsData->shared);
 
   // Start synchro interrupt
   HAL_TIM_Base_Start_IT(rampsData->synchroRefreshTimer);
@@ -291,12 +280,12 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 }
 
 _Noreturn void userLedTask(__attribute__((unused)) void *argument) {
-  uint16_t oldInCnt = 0;
+  uint32_t oldInCnt = 0;
 
   for (;;) {
     osDelay(50);
-    if (oldInCnt != RampsModbusData.u16InCnt) {
-      oldInCnt = RampsModbusData.u16InCnt;
+    if (oldInCnt != ProtocolActivity()) {
+      oldInCnt = ProtocolActivity();
       HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
       HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_RESET);
       osDelay(25);
