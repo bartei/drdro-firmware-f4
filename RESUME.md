@@ -102,8 +102,8 @@ Protocol details/grammar: `protocol_design.md`. Variable names: §A.4 there.
 - `test/` — native unit tests + `test/mocks/`.
 
 **`bootloader/`** — IAP bootloader project: `src/main.c`, `STM32F411CEUX_FLASH_BOOT.ld` (sector 0 @ 0x08000000).
-**`shared/Bootloader.h`** — app↔bootloader contract (flash layout, handshake word); both projects `-I ../shared`.
-`docs/` — frozen `.ioc` reference + RAM ld.
+**`shared/`** — `Bootloader.h` (flash map + handshake), `Settings.h`, `BlinkCode.h`; both projects `-I ../shared`.
+**`docs/`** — all design docs, trackers, and `HARDWARE.md` (see the Doc index below).
 - Old project for reference: `../rotary-controller-f4` (branch `main`).
 
 ## Gotchas (don't undo these — each was a real fix). Paths are in `app/` unless noted.
@@ -132,10 +132,11 @@ Protocol details/grammar: `protocol_design.md`. Variable names: §A.4 there.
 - Per feature: a detailed reference doc + a terse phased `*_todo.md` checkbox tracker. Tick as you go.
 - Commits/PRs: **no AI/Claude attribution** trailers or footers.
 
-## Doc index
-- `HARDWARE.md` — **known hardware bugs to fix on the next PCB run** (HW-1: BOOT0 floats).
-- `dualbank_design.md` + `dualbank_todo.md` — dual-bank A/B update system (DC1–DC5, phases D1–D4).
-- `protocol_design.md` — protocol + bootloader design, confirmed decisions D1–D9.
-- `protocol_todo.md` — phased progress (Phases 1–4 ticked; Phase 5 pending).
-- `migration_todo.md` + `migration_checklist.md` — the Cube→PlatformIO migration record.
-- `CLAUDE.md` — project overview + build/architecture for Claude Code.
+## Doc index (all in `docs/`)
+- `docs/HARDWARE.md` — **known hardware bugs to fix on the next PCB run** (HW-1: BOOT0 floats).
+- `docs/dualbank_design.md` + `docs/dualbank_todo.md` — dual-bank A/B update system (DC1–DC5, D1–D4).
+- `docs/protocol_design.md` — line protocol + IAP bootloader rationale, decisions D1–D9.
+- `docs/protocol_todo.md` — phased protocol progress.
+- `docs/bootloader_todo.md` — IAP bootloader groundwork (B0–B5).
+- `docs/migration_todo.md` (peripheral/pin map + architecture) + `docs/migration_checklist.md`.
+- `README.md` — project overview, build/flash, tooling, CLI reference. `CLAUDE.md` — agent orientation.
