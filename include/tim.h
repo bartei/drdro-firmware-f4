@@ -1,4 +1,3 @@
-/* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __TIM_H__
 #define __TIM_H__
 
@@ -6,7 +5,6 @@
 extern "C" {
 #endif
 
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
 extern TIM_HandleTypeDef htim1;

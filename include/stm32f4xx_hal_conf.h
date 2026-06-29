@@ -1,13 +1,9 @@
-/* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __STM32F4xx_HAL_CONF_H
 #define __STM32F4xx_HAL_CONF_H
 
 #ifdef __cplusplus
  extern "C" {
 #endif
-
-/* Exported types ------------------------------------------------------------*/
-/* Exported constants --------------------------------------------------------*/
 
 /* ########################## Module Selection ############################## */
 /**
@@ -244,7 +240,6 @@
 
 #define USE_SPI_CRC                     0U
 
-/* Includes ------------------------------------------------------------------*/
 /**
   * @brief Include module's header file
   */
@@ -449,7 +444,6 @@
  #include "stm32f4xx_hal_mmc.h"
 #endif /* HAL_MMC_MODULE_ENABLED */
 
-/* Exported macro ------------------------------------------------------------*/
 #ifdef  USE_FULL_ASSERT
 /**
   * @brief  The assert_param macro is used for function's parameters check.

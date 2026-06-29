@@ -1,22 +1,8 @@
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f4xx_it.h"
-/* Private includes ----------------------------------------------------------*/
 
-/* Private typedef -----------------------------------------------------------*/
-
-/* Private define ------------------------------------------------------------*/
-
-/* Private macro -------------------------------------------------------------*/
-
-/* Private variables ---------------------------------------------------------*/
 extern rampsHandler_t RampsData;
 
-/* Private function prototypes -----------------------------------------------*/
-
-/* Private user code ---------------------------------------------------------*/
-
-/* External variables --------------------------------------------------------*/
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim9;
 extern UART_HandleTypeDef huart1;

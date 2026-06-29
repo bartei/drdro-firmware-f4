@@ -1,27 +1,12 @@
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
-/* Private includes ----------------------------------------------------------*/
-
-/* Private typedef -----------------------------------------------------------*/
-
-/* Private define ------------------------------------------------------------*/
-
-/* Private macro -------------------------------------------------------------*/
-
-/* Private variables ---------------------------------------------------------*/
-
 rampsHandler_t RampsData;
 
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-void MX_FREERTOS_Init(void);
-
-/* Private user code ---------------------------------------------------------*/
 
 /**
   * @brief  The application entry point.
@@ -29,8 +14,6 @@ void MX_FREERTOS_Init(void);
   */
 int main(void)
 {
-
-  /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
@@ -60,13 +43,8 @@ int main(void)
   RampsData.commUart = &huart1;
   RampsStart(&RampsData);
 
-  /* Init scheduler */
+  /* Init and start the scheduler (tasks were created in RampsStart) */
   osKernelInitialize();
-
-  /* Call init function for freertos objects (in freertos.c) */
-  MX_FREERTOS_Init();
-
-  /* Start scheduler */
   osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */

@@ -1,4 +1,3 @@
-/* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __USART_H__
 #define __USART_H__
 
@@ -6,7 +5,6 @@
 extern "C" {
 #endif
 
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
 extern UART_HandleTypeDef huart1;
