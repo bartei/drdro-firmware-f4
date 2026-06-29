@@ -90,7 +90,7 @@ static void cmd_bank(int argc, char **argv) {     /* `bank` info | `bank <n>` se
   uint8_t n;
   if (parse_bank(argv[1], &n)) { resp_err("usage: bank <0|1>"); return; }
   settings_t s; settings_load(&s);
-  s.active_bank = n; settings_seal(&s);
+  s.active_bank = n;
   if (flash_write_settings(&s)) { resp_err("settings write"); return; }
   resp_kv_u("bank.active", n);
 }
@@ -102,7 +102,7 @@ static void cmd_boot_mode(int argc, char **argv) { /* persist boot mode (app|bl)
   else if (!strcmp(argv[1], "bl"))  m = BOOT_MODE_BOOTLOADER;
   else { resp_err("usage: boot.mode <app|bl>"); return; }
   settings_t s; settings_load(&s);
-  s.boot_mode = m; settings_seal(&s);
+  s.boot_mode = m;
   if (flash_write_settings(&s)) { resp_err("settings write"); return; }
   resp_kv_u("boot.mode", m);
 }
@@ -129,17 +129,22 @@ static void cmd_flash(int argc, char **argv) {     /* YMODEM-receive into a bank
   int rc = ymodem_receive(s_uart, BANK_BASE(n), BANK_SECTOR(n), &size);
   if (rc != YM_OK)                  { resp_err("ymodem"); return; }
   if (!bl_image_valid(BANK_BASE(n))){ resp_err("bad image"); return; }
+  /* Record the bank's region CRC32 so boot can detect later corruption. */
+  settings_t s; settings_load(&s);
+  s.bank_crc[n] = settings_crc32((const void *)BANK_BASE(n), APP_REGION_SIZE);
+  flash_write_settings(&s);
   resp_kv_u("flash", n);
   resp_kv_u("size", size);
+  resp_kv_hex("crc", s.bank_crc[n]);
 }
 
 static void cmd_copy(int argc, char **argv) {      /* force active bank -> Exec */
   (void)argc; (void)argv;
   settings_t s; settings_load(&s);
   uint8_t bank = (s.active_bank < BANK_COUNT) ? s.active_bank : 0U;
-  if (!bl_image_valid(BANK_BASE(bank))) { resp_err("bad image"); return; }
-  if (bl_load_bank(bank))               { resp_err("copy"); return; }
-  s.loaded_bank = bank; settings_seal(&s);
+  if (!bl_bank_trusted(bank, &s)) { resp_err("bad image"); return; }
+  if (bl_load_bank(bank))         { resp_err("copy"); return; }
+  s.loaded_bank = bank;
   flash_write_settings(&s);
   resp_kv_u("copy", bank);
 }

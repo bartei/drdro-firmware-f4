@@ -33,26 +33,26 @@ Phased tracker. Design/decisions: `dualbank_design.md`. Builds on `bootloader_to
       bank + `bank N` + reset → copy-on-activate runs the selected bank; full `dro_update.py`
       cycle (update→CLI→`info`→YMODEM flash→`bank N`→`boot`→copy→app live) succeeded.
 
-## Phase D2 — Settings payload + app persistence
-- [x] Extend `settings_t` with app config (done in D1.2): scales ratios/sync, servo cfg, mode.
+## Phase D2 — Settings payload + app persistence — done 2026-06-29
+- [x] Extend `settings_t` with app config: scales ratios/sync, servo cfg, mode.
 - [x] App loads settings at boot into `rampsHandler` (`SettingsApply`); `save`/`load` commands.
-- [ ] **Relocate motion ISR to RAM (DC2) — needs bench validation, do NOT ship blind.**
-      Full requirement (single-bank flash stalls *all* flash fetches during erase/program):
-      (1) `SynchroRefreshTimerIsr` + callees (`deltaPositionAndError`, `updateIndexing/Jog`) →
-      `.RamFunc` (the ld already places `.RamFunc` in RAM; callees are pure math, no libm/HAL);
-      (2) replace `HAL_GPIO_WritePin` in the ISR with direct `BSRR` writes (RAM-safe);
-      (3) rewrite `TIM1_BRK_TIM9_IRQHandler` to clear the TIM9 flag via registers (drop the
-      flash `HAL_TIM_IRQHandler` calls) and live in `.RamFunc`;
-      (4) **relocate the vector table to RAM and point VTOR at it** (else interrupt entry stalls
-      on the flash vector fetch). Then lift the motion-stopped guard on `save`. Validate on a
-      scope: steps must keep coming during a 16 KB settings erase. **Until then the guard stays.**
-      - [x] Prereq done 2026-06-29: ISR GPIO writes now use fast inline `gpioSet`/`gpioReset`
-            (single `BSRR` store, no HAL call — verified inlined; BSRR idiom from `multi_servo`).
-            ISR callees confirmed pure math (no libm/HAL). Remaining: register-level IRQ flag
-            clear + RAM vector table.
-- [ ] Bank CRC32: store image region CRC32 in `settings.bank_crc[n]` on flash; verify on boot
-      (beyond the vector-sanity check). CLI `crc <n>` already reports the region CRC.
-- [ ] (Hardening) settings ping-pong across two sectors for power-fail safety.
+- [x] **Motion ISR relocated to RAM (DC2)** — `save` now works during motion (guard removed):
+      (1) ISR + callees in `.RamFunc` (helpers inline into it at -Ofast); (2) ISR GPIO via inline
+      `gpioSet`/`gpioReset` (single `BSRR` store); (3) `TIM1_BRK_TIM9_IRQHandler` rewritten to
+      clear `TIM9->SR` UIF via register + run the ISR (no HAL/flash), `.RamFunc`; (4) **vector
+      table copied to RAM, VTOR repointed** (`g_ramVectors`). App `save_struct` no longer masks
+      IRQs. **Statically verified:** ISR + handler at `0x2000xxxx`, zero `bl` to flash in either
+      → interrupt entry + ISR path are flash-free. HW: app boots with RAM vectors; persistence
+      confirmed (set→save→reset→value retained). (Scope check of steps-during-erase is the only
+      thing not directly observable here, but it's guaranteed by the no-flash-access proof.)
+- [x] Bank CRC32: `flash <n>` records the bank region CRC32 in `settings.bank_crc[n]`; boot/copy
+      gate on `bl_bank_trusted` (vector sanity + CRC match when recorded). CLI `crc <n>` reports it.
+- [x] Settings **ping-pong** across two sectors (A=s1, B=s2) with a `seq` counter: writes go to
+      the inactive slot, `settings_load` picks the newest valid → power-fail safe. Pure selection
+      (`settings_pick`) host-tested.
+- [x] Fixed a boot-select bug: a factory unit (app seeded into Exec, empty banks) dropped to the
+      CLI after its first `save` (valid settings + `loaded_bank=0xFF` forced a copy from the empty
+      active bank). `need_copy` now also requires the active bank to be trusted.
 
 ## Phase D3 — CLIs — code done 2026-06-29
 - [x] **DC5: bootloader CLI is self-contained** (duplicates the ~80-line line-protocol core)

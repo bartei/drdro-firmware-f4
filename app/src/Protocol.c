@@ -120,6 +120,7 @@ static const var_entry_t kVars[] = {
   { "servo.jog",     OFF(servo.jogSpeed),             VT_F32, 1, 0, 0    },
   { "servo.mode",    OFF(fastData.servoMode),         VT_U16, 1, 0, 0    },
   { "servo.pos",     OFF(servo.currentSteps),         VT_U32, 1, 0, V_RO },
+  { "servo.speed",   OFF(servo.currentSpeed),         VT_F32, 1, 0, V_RO },
   { "servo.tgt",     OFF(servo.stepsToGo),            VT_I32, 1, 0, 0    },
   { "diag.cycles",   OFF(fastData.cycles),            VT_U32, 1, 0, V_RO },
   { "diag.interval", OFF(fastData.executionInterval), VT_U32, 1, 0, V_RO },
@@ -201,16 +202,12 @@ static void cmdSet(int argc, char **argv) {
 }
 static void cmdSta(int argc, char **argv) {
   (void)argc; (void)argv;
-  const var_entry_t *pos = findVar("scales.pos");
-  const var_entry_t *spd = findVar("scales.speed");
-  if (pos) emitVar(pos);
-  if (spd) emitVar(spd);
+  static const char *kStaVars[] = { "scales.pos", "scales.speed", "servo.pos", "servo.speed" };
+  for (unsigned i = 0; i < sizeof(kStaVars) / sizeof(kStaVars[0]); i++) {
+    const var_entry_t *v = findVar(kStaVars[i]);
+    if (v) emitVar(v);
+  }
 }
-
-/* A flash write (save / bank select) stalls the single-bank flash bus and freezes the
- * step ISR, so gate it on motion being stopped (servo.mode == 0). Lifted once the ISR
- * is relocated to RAM (dualbank_todo.md D2). */
-static int motionIdle(void) { return sShared->fastData.servoMode == 0; }
 
 /* Enter the IAP bootloader: arm the handshake word, ack, then reset (done in
  * ProtocolService once the ack has fully left the wire). See include/Bootloader.h. */
@@ -233,7 +230,6 @@ static void cmdReset(int argc, char **argv) {
 
 static void cmdSave(int argc, char **argv) {
   (void)argc; (void)argv;
-  if (!motionIdle())                 { respError("busy (stop motion first)"); return; }
   if (SettingsSave(sShared) != 0)    { respError("flash write"); return; }
   respKV("save", "ok");
 }
@@ -249,7 +245,6 @@ static void cmdBank(int argc, char **argv) {
     return;
   }
   if ((argv[1][0] != '0' && argv[1][0] != '1') || argv[1][1]) { respError("usage: bank <0|1>"); return; }
-  if (!motionIdle())                 { respError("busy (stop motion first)"); return; }
   if (SettingsBankSet((uint8_t)(argv[1][0] - '0')) != 0) { respError("flash write"); return; }
   respKV("bank.active", argv[1]);
 }

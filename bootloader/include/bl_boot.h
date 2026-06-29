@@ -9,11 +9,16 @@
 #define BL_BOOT_H
 
 #include <stdint.h>
+#include "Settings.h"
 
 /* Vector-table sanity for an image: initial SP in RAM, reset vector in the Exec
  * range. Stored banks hold Exec-linked images, so PC is checked against Exec for
  * both Exec and bank vectors. vec_base = where the vector table is read from. */
 int  bl_image_valid(uint32_t vec_base);
+
+/* A bank is trusted if its vectors are sane AND (when a CRC is recorded in settings)
+ * its 128 KB region CRC32 matches settings->bank_crc[bank]. */
+int  bl_bank_trusted(uint8_t bank, const settings_t *s);
 
 /* Copy a bank (0|1) into the Exec region (erase + copy + verify). 0 ok, -1 on error. */
 int  bl_load_bank(uint8_t bank);

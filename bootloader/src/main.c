@@ -135,6 +135,15 @@ int bl_image_valid(uint32_t vec_base) {
   return 1;
 }
 
+int bl_bank_trusted(uint8_t bank, const settings_t *s) {
+  if (bank >= BANK_COUNT) return 0;
+  if (!bl_image_valid(BANK_BASE(bank))) return 0;
+  if (s && s->bank_crc[bank] != 0U &&
+      settings_crc32((const void *)BANK_BASE(bank), APP_REGION_SIZE) != s->bank_crc[bank])
+    return 0;                                       /* recorded CRC mismatch → corrupt */
+  return 1;
+}
+
 int bl_load_bank(uint8_t bank) {
   if (bank >= BANK_COUNT) return -1;
   hw_init_once();                                  /* flash timing needs the clock */
@@ -159,19 +168,19 @@ int bl_boot_app(void) {
   int valid = settings_load(&s);
   uint8_t bank = (s.active_bank < BANK_COUNT) ? s.active_bank : 0U;
 
-  /* Copy only when valid settings select a bank that isn't the one in Exec. Otherwise
-   * prefer running whatever is already in Exec — this lets a factory image (bootloader
-   * + app-in-Exec, no settings) boot directly without a settings blob. */
-  int need_copy = valid && (s.loaded_bank != bank);
+  /* Copy only when settings select a *trusted* bank that isn't the one already in Exec.
+   * Requiring the bank to be trusted means a unit whose active bank is empty (e.g. a
+   * factory image seeded straight into Exec, or after the app first writes settings with
+   * loaded_bank=0xFF) still runs the valid Exec image instead of dropping to the CLI. */
+  int need_copy = valid && (s.loaded_bank != bank) && bl_bank_trusted(bank, &s);
 
   if (!need_copy && bl_image_valid(APP_EXEC_BASE)) {
     bl_jump_to_exec();                              /* run what's in Exec — no return */
   }
-  if (bl_image_valid(BANK_BASE(bank))) {            /* (re)load the active bank into Exec */
+  if (bl_bank_trusted(bank, &s)) {                  /* (re)load the active bank into Exec */
     if (bl_load_bank(bank) != 0) return -1;
     s.loaded_bank = bank;
-    settings_seal(&s);
-    flash_write_settings(&s);
+    flash_write_settings(&s);                       /* prepare() seals + ping-pongs */
     if (bl_image_valid(APP_EXEC_BASE)) bl_jump_to_exec();   /* no return */
   }
   return -1;                                        /* nothing valid → CLI */

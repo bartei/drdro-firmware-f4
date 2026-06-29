@@ -7,8 +7,9 @@
  *
  * Flash layout (F411CE, 512 KB — sectors 4×16K / 1×64K / 3×128K):
  *   sector 0       0x08000000  16 KB   bootloader (never erased)
- *   sector 1       0x08004000  16 KB   settings (see Settings.h)
- *   sectors 2..4   0x08008000  96 KB   reserved (future / recovery)
+ *   sector 1       0x08004000  16 KB   settings slot A (see Settings.h)
+ *   sector 2       0x08008000  16 KB   settings slot B (ping-pong shadow)
+ *   sectors 3..4   0x0800C000  80 KB   reserved (future / recovery)
  *   sector 5       0x08020000 128 KB   Exec    — the app runs here (single build)
  *   sector 6       0x08040000 128 KB   Bank 0  — stored app version
  *   sector 7       0x08060000 128 KB   Bank 1  — stored app version

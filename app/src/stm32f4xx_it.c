@@ -84,12 +84,16 @@ void DebugMon_Handler(void)
 /**
   * @brief This function handles TIM1 break interrupt and TIM9 global interrupt.
   */
-void TIM1_BRK_TIM9_IRQHandler(void)
+RAM_FUNC void TIM1_BRK_TIM9_IRQHandler(void)
 {
-
-  HAL_TIM_IRQHandler(&htim1);
-  HAL_TIM_IRQHandler(&htim9);
+  /* RAM-resident + register-only (no HAL/flash calls) so step generation continues while
+   * flash is being erased/programmed (the vector table is also relocated to RAM in main).
+   * Clear the TIM9 update flag and run the motion ISR. TIM1-break is unused; the HAL
+   * period-elapsed callback only serves the TIM11 timebase, not TIM9. */
+  if (TIM9->SR & TIM_SR_UIF) {
+    TIM9->SR = ~TIM_SR_UIF;
     SynchroRefreshTimerIsr(&RampsData);
+  }
 }
 
 /**

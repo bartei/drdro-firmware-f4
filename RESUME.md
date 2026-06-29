@@ -1,15 +1,17 @@
 # RESUME — drDRO firmware (read this first when picking up)
 
-Last updated: 2026-06-29. Branch **`feat/iap-bootloader`** (NOT yet on `main`), last commit `3027be0`.
+Last updated: 2026-06-29. On **`main`** (dual-bank IAP shipped, released ≥ v0.2.2).
 This is the portable handoff (the local `~/.claude` memory does NOT travel to a
 remote machine — this file does). Detail lives in the linked docs.
 
-**Resuming:** `git checkout feat/iap-bootloader`. Repo is now two projects — `app/` + `bootloader/`
-(+ `shared/`); build with `pio run -d app` / `pio run -d bootloader`. Protocol shipped + verified;
-bootloader **B0–B3 + host updater HW-verified** — a full `update`→YMODEM→reflash→app-live cycle
-ran on the bench (`tools/dro_update.py`). **Next = finish B4** (combined factory `.hex` + CI), then
-the robust `update` trigger (BOOT0 follow-up, see below). Branch not pushed to `main` (would release
-an incomplete IAP setup).
+**Resuming:** repo is two projects — `app/` + `bootloader/` (+ `shared/`); build with
+`pio run -d app` / `pio run -d bootloader`. **Dual-bank A/B firmware update is complete &
+HW-verified** (`dualbank_design.md` / `dualbank_todo.md`, phases D1–D4): copy-on-activate
+banking, persistent ping-pong settings + bank CRC32, bootloader & app CLIs, RAM-resident
+motion ISR (`save` works during motion), repeating LED codes, `tools/dro_update.py`,
+combined `factory.hex` in CI/release. **Open follow-ups:** release-asset name collision
+(app vs bootloader `firmware.*` share a basename — rename in `release.yml`); the app→bootloader
+`update`/`reset` still uses `NVIC_SystemReset` (BOOT0 follow-up below); optional multi-board baud.
 
 > ⚠️ **BOOT0 floats on this board** — system resets (`NVIC_SystemReset`/AIRCR, incl. `st-flash reset`)
 > intermittently boot the **ST system-memory ROM** (PC=0x1FFFxxxx, lone `\x00` on serial) instead of

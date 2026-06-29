@@ -28,7 +28,8 @@ void flash_program_end(void);
 int  flash_copy_region(uint32_t dst_sector, uint32_t dst_base, uint32_t src_base);
 /* Erase one region sector (Exec or a bank). Refuses sector 0. */
 int  flash_erase_sector(uint32_t sector);
-/* Erase the settings sector and program the struct (word-verified). */
-int  flash_write_settings(const settings_t *s);
+/* Ping-pong settings write: prepare *s (bump seq + seal), then erase+program the
+ * inactive settings slot (power-fail safe — the previous slot stays intact). */
+int  flash_write_settings(settings_t *s);
 
 #endif /* FLASH_H */

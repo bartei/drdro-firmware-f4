@@ -8,6 +8,11 @@
 
 rampsHandler_t RampsData;
 
+/* Vector table relocated to RAM so interrupt entry (esp. the motion ISR) doesn't fetch
+ * from flash — lets the step ISR keep running while flash is erased/programmed (settings
+ * /bank save). 512-byte aligned (VTOR requires alignment >= table size, ~101 vectors). */
+static uint32_t g_ramVectors[128] __attribute__((aligned(0x200)));
+
 void SystemClock_Config(void);
 
 /**
@@ -16,11 +21,15 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
-  /* IAP: this image runs from the Exec region (0x08020000); the bootloader copies the
-   * active bank here and sets VTOR before jumping, but set it ourselves too so the app
-   * is correct when run standalone (debugger/ST-Link direct flash to Exec). Must precede
-   * HAL_Init() so SysTick/NVIC use the relocated table. */
-  SCB->VTOR = APP_EXEC_BASE;
+  /* IAP: this image runs from the Exec region (0x08020000). Copy the vector table into
+   * RAM and point VTOR at it (before HAL_Init, so the HAL/NVIC use it): keeping vectors
+   * in RAM means interrupt entry never fetches from flash, so the motion ISR keeps firing
+   * during a flash erase/program (settings/bank save). */
+  for (uint32_t i = 0; i < 128U; i++)
+    g_ramVectors[i] = ((const volatile uint32_t *)APP_EXEC_BASE)[i];
+  SCB->VTOR = (uint32_t)g_ramVectors;
+  __DSB();
+  __ISB();
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();

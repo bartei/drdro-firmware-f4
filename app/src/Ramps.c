@@ -208,7 +208,7 @@ static inline void updateJogPosition(rampsHandler_t *data) {
   shared->servo.desiredSteps += positionIncrement;
 }
 
-void SynchroRefreshTimerIsr(rampsHandler_t *data) {
+RAM_FUNC void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 //  HAL_GPIO_TogglePin(SPARE_1_GPIO_PORT, SPARE_1_PIN);
 //  gpioSet(SPARE_2_GPIO_PORT, SPARE_1_PIN);
   uint32_t start = DWT->CYCCNT;

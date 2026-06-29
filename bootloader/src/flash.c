@@ -70,10 +70,11 @@ int flash_copy_region(uint32_t dst_sector, uint32_t dst_base, uint32_t src_base)
   return rc;
 }
 
-int flash_write_settings(const settings_t *s) {
+int flash_write_settings(settings_t *s) {
+  int slot = settings_prepare(s);                 /* bump seq + seal; pick inactive slot */
   HAL_FLASH_Unlock();
-  int rc = flash_erase_sector(SETTINGS_SECTOR);
-  if (rc == 0) rc = program_verify(SETTINGS_BASE, (const uint8_t *)s, sizeof(*s));
+  int rc = flash_erase_sector(SETTINGS_SLOT_SECTOR(slot));
+  if (rc == 0) rc = program_verify(SETTINGS_SLOT_BASE(slot), (const uint8_t *)s, sizeof(*s));
   HAL_FLASH_Lock();
   return rc;
 }

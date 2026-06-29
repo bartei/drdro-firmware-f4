@@ -37,31 +37,32 @@ static void settings_to_shared(const settings_t *s, rampsSharedData_t *sh) {
   sh->fastData.servoMode = s->servo_mode;
 }
 
-/* Erase the settings sector and program the struct (word-verified). IRQs masked. */
-static int write_struct(const settings_t *s) {
+/* Erase one settings slot's sector and program the struct there (word-verified). */
+static int write_slot(int slot, const settings_t *s) {
+  uint32_t base = SETTINGS_SLOT_BASE(slot);
   HAL_FLASH_Unlock();
   FLASH_EraseInitTypeDef e = {0};
   e.TypeErase    = FLASH_TYPEERASE_SECTORS;
-  e.Sector       = SETTINGS_SECTOR;
+  e.Sector       = SETTINGS_SLOT_SECTOR(slot);
   e.NbSectors    = 1U;
   e.VoltageRange = FLASH_VOLTAGE_RANGE_3;
   uint32_t err = 0;
   int rc = (HAL_FLASHEx_Erase(&e, &err) == HAL_OK) ? 0 : -1;
   const uint32_t *w = (const uint32_t *)s;
   for (uint32_t i = 0; rc == 0 && i < sizeof(*s) / 4U; i++) {
-    if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, SETTINGS_BASE + i * 4U, w[i]) != HAL_OK) { rc = -1; break; }
-    if (*(volatile uint32_t *)(SETTINGS_BASE + i * 4U) != w[i]) { rc = -1; break; }
+    if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, base + i * 4U, w[i]) != HAL_OK) { rc = -1; break; }
+    if (*(volatile uint32_t *)(base + i * 4U) != w[i]) { rc = -1; break; }
   }
   HAL_FLASH_Lock();
   return rc;
 }
 
-static int save_struct(const settings_t *s) {
-  uint32_t primask = __get_PRIMASK();
-  __disable_irq();
-  int rc = write_struct(s);
-  if (!primask) __enable_irq();
-  return rc;
+/* Ping-pong write to the inactive slot (prepare bumps seq + seals). Interrupts stay
+ * ENABLED: the flash bus stall freezes only flash-resident code, while the motion ISR
+ * (relocated to RAM, with a RAM vector table) keeps generating steps throughout. */
+static int save_struct(settings_t *s) {
+  int slot = settings_prepare(s);
+  return write_slot(slot, s);
 }
 
 void SettingsApply(rampsSharedData_t *shared) {
@@ -78,10 +79,9 @@ int SettingsLoad(rampsSharedData_t *shared) {
 
 int SettingsSave(const rampsSharedData_t *shared) {
   settings_t s;
-  settings_load(&s);                 /* preserve bootloader fields (active/loaded/mode) */
+  settings_load(&s);                 /* preserve bootloader fields (active/loaded/mode/crc) */
   shared_to_settings(shared, &s);
-  settings_seal(&s);
-  return save_struct(&s);
+  return save_struct(&s);            /* prepare() bumps seq + seals */
 }
 
 int SettingsBankSet(uint8_t bank) {
@@ -89,7 +89,6 @@ int SettingsBankSet(uint8_t bank) {
   settings_t s;
   settings_load(&s);
   s.active_bank = bank;
-  settings_seal(&s);
   return save_struct(&s);
 }
 

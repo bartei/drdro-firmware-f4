@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include "Protocol.h"
 #include "SettingsStore.h"
+#include "Settings.h"
 
 /* ---- SettingsStore stubs (real impl is HW-only; no flash here) ----------- */
 void    SettingsApply(rampsSharedData_t *s)      { (void)s; }
@@ -88,9 +89,12 @@ static void test_get_array_grouped(void) {
 static void test_sta(void) {
   shared.scales[0].position = 10; shared.scales[1].position = 20;
   shared.scales[0].speed = 5;
+  shared.servo.currentSteps = 1234; shared.servo.currentSpeed = 7.5f;
   run("sta");
   TEST_ASSERT_NOT_NULL(strstr(cap, "scales.pos=10,20,0,0"));
   TEST_ASSERT_NOT_NULL(strstr(cap, "scales.speed=5,0,0,0"));
+  TEST_ASSERT_NOT_NULL(strstr(cap, "servo.pos=1234"));
+  TEST_ASSERT_NOT_NULL(strstr(cap, "servo.speed=7.5"));
 }
 
 static void test_settings_dumps_all(void) {
@@ -186,11 +190,10 @@ static void test_save_ok_when_idle(void) {
   run("save");
   TEST_ASSERT_NOT_NULL(strstr(cap, "save=ok"));
 }
-static void test_save_busy_when_moving(void) {
-  shared.fastData.servoMode = 2;          /* jog: not idle */
-  run("save");
-  TEST_ASSERT_NOT_NULL(strstr(cap, "error="));
-  TEST_ASSERT_NULL(strstr(cap, "save=ok"));
+static void test_save_ok_during_motion(void) {
+  shared.fastData.servoMode = 2;          /* jog: motion active — still allowed */
+  run("save");                            /* RAM-resident ISR keeps stepping during the write */
+  TEST_ASSERT_NOT_NULL(strstr(cap, "save=ok"));
 }
 static void test_bank_reports_active(void) {
   run("bank");
@@ -200,6 +203,44 @@ static void test_bank_select_ok(void) {
   shared.fastData.servoMode = 0;
   run("bank 1");
   TEST_ASSERT_NOT_NULL(strstr(cap, "bank.active=1"));
+}
+
+/* ---- settings: CRC / validate / defaults / ping-pong pick (pure logic) ---- */
+static void test_settings_crc32_vector(void) {
+  TEST_ASSERT_EQUAL_HEX32(0xCBF43926, settings_crc32("123456789", 9));  /* CRC-32/ISO-HDLC */
+}
+static void test_settings_seal_validate(void) {
+  settings_t s; settings_defaults(&s);
+  TEST_ASSERT_TRUE(settings_valid(&s));
+  ((uint8_t *)&s)[8] ^= 0xFF;                 /* corrupt a payload byte */
+  TEST_ASSERT_FALSE(settings_valid(&s));
+}
+static void test_settings_defaults(void) {
+  settings_t s; settings_defaults(&s);
+  TEST_ASSERT_EQUAL_INT32(100, s.scale_den[0]);
+  TEST_ASSERT_EQUAL_FLOAT(720.0f, s.servo_max);
+  TEST_ASSERT_EQUAL_UINT8(0xFF, s.loaded_bank);
+  TEST_ASSERT_EQUAL_UINT32(0, s.seq);
+}
+static void test_settings_pick_newest_seq(void) {
+  settings_t a, b, out;
+  settings_defaults(&a); a.active_bank = 0; a.seq = 5; settings_seal(&a);
+  settings_defaults(&b); b.active_bank = 1; b.seq = 7; settings_seal(&b);
+  TEST_ASSERT_EQUAL_INT(1, settings_pick(&a, &b, &out));
+  TEST_ASSERT_EQUAL_UINT8(1, out.active_bank);            /* b has the newer seq */
+  a.seq = 9; settings_seal(&a);
+  TEST_ASSERT_EQUAL_INT(1, settings_pick(&a, &b, &out));
+  TEST_ASSERT_EQUAL_UINT8(0, out.active_bank);            /* now a is newer */
+}
+static void test_settings_pick_validity_fallback(void) {
+  settings_t a, b, out;
+  settings_defaults(&a); a.active_bank = 0; settings_seal(&a);
+  settings_defaults(&b); b.magic = 0;                     /* b invalid */
+  TEST_ASSERT_EQUAL_INT(1, settings_pick(&a, &b, &out));
+  TEST_ASSERT_EQUAL_UINT8(0, out.active_bank);            /* picks the only valid one */
+  a.magic = 0;                                            /* now neither valid */
+  TEST_ASSERT_EQUAL_INT(0, settings_pick(&a, &b, &out));
+  TEST_ASSERT_TRUE(settings_valid(&out));                 /* defaults are returned, sealed */
 }
 
 int main(void) {
@@ -227,8 +268,13 @@ int main(void) {
   RUN_TEST(test_activity_increments);
   RUN_TEST(test_reset_acks);
   RUN_TEST(test_save_ok_when_idle);
-  RUN_TEST(test_save_busy_when_moving);
+  RUN_TEST(test_save_ok_during_motion);
   RUN_TEST(test_bank_reports_active);
   RUN_TEST(test_bank_select_ok);
+  RUN_TEST(test_settings_crc32_vector);
+  RUN_TEST(test_settings_seal_validate);
+  RUN_TEST(test_settings_defaults);
+  RUN_TEST(test_settings_pick_newest_seq);
+  RUN_TEST(test_settings_pick_validity_fallback);
   return UNITY_END();
 }

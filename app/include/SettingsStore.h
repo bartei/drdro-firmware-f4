@@ -6,9 +6,9 @@
  * (../shared/Settings.h) to/from the live register block, and exposes the boot-bank
  * selector. Bootloader fields (active/loaded bank, boot mode) are preserved on save.
  *
- * NOTE: a flash write stalls the single-bank flash bus (freezes the step ISR), so the
- * caller must ensure motion is stopped before SettingsSave/SettingsBankSet (until the
- * step ISR is relocated to RAM — dualbank_todo.md D2). Design: dualbank_design.md.
+ * A flash write stalls the single-bank flash bus, but the motion ISR runs from RAM (with
+ * a RAM vector table), so step generation continues during a save — no need to stop
+ * motion first. Design: dualbank_design.md.
  */
 #ifndef SETTINGSSTORE_H
 #define SETTINGSSTORE_H

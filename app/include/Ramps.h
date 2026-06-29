@@ -28,6 +28,11 @@
 /* USR_LED diagnostic code rendered by userLedTask (BlinkCode.h). Default BLINK_APP. */
 extern volatile uint8_t gBlinkCode;
 
+/* Place a function in RAM (.RamFunc — loaded in flash, copied to RAM by startup) so it
+ * can execute while flash is being erased/programmed (single-bank flash stalls all flash
+ * reads). Used for the motion ISR path so a settings/bank save never drops steps. */
+#define RAM_FUNC __attribute__((section(".RamFunc")))
+
 /* Fast GPIO writes — a single store to BSRR, far cheaper than HAL_GPIO_WritePin and,
  * being inline (no flash call), safe on the motion ISR hot path / in RAM-resident code.
  * Set = write the pin bit; reset = write it shifted into the high half. (BSRR idiom from
@@ -123,7 +128,7 @@ typedef struct {
 
 void RampsStart(rampsHandler_t *rampsData);
 
-void SynchroRefreshTimerIsr(rampsHandler_t *data);
+RAM_FUNC void SynchroRefreshTimerIsr(rampsHandler_t *data);
 
 _Noreturn void updateSpeedTask(void *argument);
 
