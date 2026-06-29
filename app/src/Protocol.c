@@ -249,6 +249,17 @@ static void cmdBank(int argc, char **argv) {
   respKV("bank.active", argv[1]);
 }
 
+/* Switch to the other bank and hand off to the bootloader (which copies it into Exec
+ * and runs it). Convenience over `bank <other>` + `reset`. */
+static void cmdRollback(int argc, char **argv) {
+  (void)argc; (void)argv;
+  uint8_t other = SettingsActiveBank() ? 0u : 1u;
+  if (SettingsBankSet(other) != 0) { respError("flash write"); return; }
+  char b[2] = { (char)('0' + other), '\0' };
+  respKV("rollback", b);
+  sResetPending = 1;                   /* ProtocolService jumps to the bootloader */
+}
+
 static const cmd_t kCommands[] = {
   { "sta",      cmdSta,      "fast read: scale positions + speeds" },
   { "set",      cmdSet,      "set <name> [idx] <value>" },
@@ -257,6 +268,7 @@ static const cmd_t kCommands[] = {
   { "save",     cmdSave,     "persist settings to flash (motion stopped)" },
   { "load",     cmdLoad,     "reload settings from flash" },
   { "bank",     cmdBank,     "bank [<0|1>] — active bank: report, or select for next boot" },
+  { "rollback", cmdRollback, "switch to the other bank and reboot into it" },
   { "version",  cmdVersion,  "firmware version" },
   { "help",     cmdHelp,     "list commands" },
   { "update",   cmdUpdate,   "reboot into the firmware-update bootloader" },

@@ -205,6 +205,10 @@ static void test_bank_select_ok(void) {
   run("bank 1");
   TEST_ASSERT_NOT_NULL(strstr(cap, "bank.active=1"));
 }
+static void test_rollback_acks(void) {
+  run("rollback");                          /* stub SettingsActiveBank()==0 -> other=1 */
+  TEST_ASSERT_NOT_NULL(strstr(cap, "rollback=1"));
+}
 
 /* ---- settings: CRC / validate / defaults / ping-pong pick (pure logic) ---- */
 static void test_settings_crc32_vector(void) {
@@ -272,6 +276,7 @@ int main(void) {
   RUN_TEST(test_save_ok_during_motion);
   RUN_TEST(test_bank_reports_active);
   RUN_TEST(test_bank_select_ok);
+  RUN_TEST(test_rollback_acks);
   RUN_TEST(test_settings_crc32_vector);
   RUN_TEST(test_settings_seal_validate);
   RUN_TEST(test_settings_defaults);

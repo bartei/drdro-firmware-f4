@@ -154,6 +154,17 @@ static void cmd_boot(int argc, char **argv) {      /* run the app (copy if stale
   if (bl_boot_app() != 0) resp_err("no app");      /* only returns on failure */
 }
 
+static void cmd_rollback(int argc, char **argv) {  /* switch to the other bank and boot it */
+  (void)argc; (void)argv;
+  settings_t s; settings_load(&s);
+  uint8_t other = s.active_bank ? 0u : 1u;
+  if (!bl_bank_trusted(other, &s)) { resp_err("other bank invalid"); return; }
+  s.active_bank = other;
+  if (flash_write_settings(&s))    { resp_err("settings write"); return; }
+  bl_boot_app();                                   /* copies other->Exec, jumps; returns on failure */
+  resp_err("boot failed");
+}
+
 static void cmd_reset(int argc, char **argv) {     /* full system reset (re-samples BOOT0) */
   (void)argc; (void)argv;
   resp_kv("reset", "ok");
@@ -171,6 +182,7 @@ static const cli_cmd_t kCommands[] = {
   { "erase",     cmd_erase,     "erase <0|1>" },
   { "crc",       cmd_crc,       "crc <0|1> — CRC32 of a bank region" },
   { "copy",      cmd_copy,      "copy active bank into Exec" },
+  { "rollback",  cmd_rollback,  "switch to the other bank and boot it" },
   { "boot",      cmd_boot,      "run the app (jump; no reset)" },
   { "reset",     cmd_reset,     "system reset" },
   { NULL, NULL, NULL },
