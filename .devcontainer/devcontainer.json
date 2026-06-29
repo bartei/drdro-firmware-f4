@@ -1,0 +1,41 @@
+{
+  "name": "drDRO firmware (PlatformIO / STM32F4)",
+  "build": { "dockerfile": "Dockerfile" },
+
+  // GitHub CLI for the gh-based release/PR workflow.
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  "mounts": [
+    // Persist PlatformIO home (platform, stm32cube framework, arm toolchain, caches)
+    // across rebuilds so they are not re-downloaded every time.
+    "source=drdro-platformio,target=/home/vscode/.platformio,type=volume"
+
+    // --- ST-Link / USB flashing (LINUX HOST ONLY) -------------------------------
+    // Uncomment to pass the host USB bus in for `pio run -t upload` / debugging.
+    // Plug the ST-Link in BEFORE opening the container. Remove on macOS/Windows.
+    // ,"source=/dev/bus/usb,target=/dev/bus/usb,type=bind"
+  ],
+
+  // Needed for USB device access (ST-Link). Harmless for build/test-only use.
+  "runArgs": ["--privileged"],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "platformio.platformio-ide",
+        "ms-vscode.cpptools",
+        "marus25.cortex-debug",
+        "redhat.vscode-yaml"
+      ],
+      "settings": {
+        "platformio-ide.useBuiltinPIOCore": false,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteUser": "vscode"
+}
