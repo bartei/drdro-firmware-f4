@@ -133,10 +133,19 @@ def read_response(ser, timeout=3.0):
     return kv
 
 
-def cli(ser, cmd, timeout=3.0):
-    ser.reset_input_buffer()
-    ser.write((cmd + "\r").encode()); ser.flush()
-    resp = read_response(ser, timeout)
+def cli(ser, cmd, timeout=3.0, retries=3):
+    """Send a CLI command and return the parsed framed response. Retries on an empty or
+    'unknown command' reply: the first byte of a command can be lost to the RS485
+    turnaround right after the device transmitted (e.g. just after the greeting), and
+    these commands are all valid — so a glitch, not a real error."""
+    resp = {}
+    for _ in range(retries):
+        ser.reset_input_buffer()
+        ser.write((cmd + "\r").encode()); ser.flush()
+        resp = read_response(ser, timeout)
+        if resp and resp.get("error") != "unknown command" and "error" not in resp:
+            return resp
+        time.sleep(0.15)
     if "error" in resp:
         sys.exit(f"`{cmd}` -> error={resp['error']}")
     return resp
@@ -146,7 +155,11 @@ def enter_bootloader(ser):
     print("requesting update (-> bootloader)...")
     ser.reset_input_buffer()
     ser.write(b"update\r"); ser.flush()
-    # The app acks + resets; the bootloader greets with "bootloader=ready".
+    # The app acks `update=ready` then jumps; the bootloader greets `bootloader=ready`.
+    # Wait until we've seen "bootloader" AND the frame's terminating blank line (\n\n):
+    # the substring match tolerates a glitched first greeting byte (RS485 turnaround),
+    # and waiting for the terminator guarantees the bootloader finished transmitting (is
+    # back in RX) before we send a command — so our command's first byte isn't lost.
     deadline = time.monotonic() + 8.0
     buf = b""
     while time.monotonic() < deadline:
@@ -154,8 +167,9 @@ def enter_bootloader(ser):
         if not c:
             continue
         buf += c
-        if b"bootloader" in buf:
-            time.sleep(0.2); ser.reset_input_buffer()
+        if b"bootloader" in buf and buf.endswith(b"\n\n"):
+            time.sleep(0.15)            # let the bootloader's TX->RX turnaround settle
+            ser.reset_input_buffer()
             return
     sys.exit("bootloader did not announce itself (no 'bootloader=ready').")
 

@@ -41,4 +41,8 @@ void ProtocolService(void);
  *  testing; `line` need not be the internal buffer. */
 void ProtocolProcessLine(char *line);
 
+/** Hand off to the IAP bootloader by jumping (not resetting) — implemented in main.c.
+ *  ProtocolService() calls this for the `update`/`reset` commands. See HARDWARE.md HW-1. */
+void EnterBootloader(void);
+
 #endif /* DRDRO_PROTOCOL_H */

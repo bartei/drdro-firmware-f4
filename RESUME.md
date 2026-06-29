@@ -9,15 +9,18 @@ remote machine — this file does). Detail lives in the linked docs.
 HW-verified** (`dualbank_design.md` / `dualbank_todo.md`, phases D1–D4): copy-on-activate
 banking, persistent ping-pong settings + bank CRC32, bootloader & app CLIs, RAM-resident
 motion ISR (`save` works during motion), repeating LED codes, `tools/dro_update.py`,
-combined `factory.hex` in CI/release. **Open follow-ups:** release-asset name collision
-(app vs bootloader `firmware.*` share a basename — rename in `release.yml`); the app→bootloader
-`update`/`reset` still uses `NVIC_SystemReset` (BOOT0 follow-up below); optional multi-board baud.
+combined `factory.hex` in CI/release. The app↔bootloader cycle now uses **jumps, not
+resets** (`EnterBootloader()`), so `dro_update.py` runs deterministically. **Open
+follow-ups:** the BOOT0 **hardware** fix on the next PCB run (see `HARDWARE.md` HW-1 — only
+power-on/NRST still sample BOOT0); optional multi-board baud. *(Done: dual-bank A/B, both
+CLIs, RAM motion ISR, ping-pong settings + bank CRC32, LED codes, release-asset rename.)*
 
-> ⚠️ **BOOT0 floats on this board** — system resets (`NVIC_SystemReset`/AIRCR, incl. `st-flash reset`)
-> intermittently boot the **ST system-memory ROM** (PC=0x1FFFxxxx, lone `\x00` on serial) instead of
-> flash. The bootloader now **jumps** to the app after an update (never re-samples BOOT0). On the
-> bench, retry the reset a few times until the app answers `version`. Detail: `boot0-floating-system-rom`
-> memory + `bootloader_todo.md` B3/B5.
+> ⚠️ **BOOT0 floats on this board (HARDWARE BUG — see `HARDWARE.md` HW-1)** — system resets
+> (`NVIC_SystemReset`/AIRCR, incl. `st-flash reset`) intermittently boot the **ST system-memory ROM**
+> (PC=0x1FFFxxxx, lone `\x00` on serial) instead of flash. Firmware works around it by **jumping**
+> (bootloader↔app), never resetting, so the update cycle is deterministic; only a true power-on/NRST
+> still samples BOOT0. **Fix in hardware on the next fab** (tie BOOT0 to GND). On the bench, retry the
+> reset until the app answers `version`. Detail: `HARDWARE.md`, `boot0-floating-system-rom` memory.
 
 ## TL;DR
 PlatformIO firmware for the drDRO rotary controller (STM32F411CEU6). Migrated off
@@ -130,6 +133,8 @@ Protocol details/grammar: `protocol_design.md`. Variable names: §A.4 there.
 - Commits/PRs: **no AI/Claude attribution** trailers or footers.
 
 ## Doc index
+- `HARDWARE.md` — **known hardware bugs to fix on the next PCB run** (HW-1: BOOT0 floats).
+- `dualbank_design.md` + `dualbank_todo.md` — dual-bank A/B update system (DC1–DC5, phases D1–D4).
 - `protocol_design.md` — protocol + bootloader design, confirmed decisions D1–D9.
 - `protocol_todo.md` — phased progress (Phases 1–4 ticked; Phase 5 pending).
 - `migration_todo.md` + `migration_checklist.md` — the Cube→PlatformIO migration record.

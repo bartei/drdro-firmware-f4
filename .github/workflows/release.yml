@@ -53,6 +53,15 @@ jobs:
             bootloader/.pio/build/bootloader/firmware.hex \
             app/.pio/build/drdro_f411ce/firmware.hex
 
+      - name: Stage release artifacts (distinct names — app/bootloader share 'firmware.*')
+        run: |
+          mkdir -p dist
+          for ext in bin hex elf; do
+            cp app/.pio/build/drdro_f411ce/firmware.$ext        dist/drdro-app.$ext
+            cp bootloader/.pio/build/bootloader/firmware.$ext   dist/drdro-bootloader.$ext
+          done
+          cp factory.hex dist/drdro-factory.hex
+
       - name: Tag the release
         run: |
           git config user.name  "github-actions[bot]"
@@ -71,10 +80,10 @@ jobs:
           tag_name: "v${{ steps.version.outputs.version }}"
           generate_release_notes: true
           files: |
-            app/.pio/build/drdro_f411ce/firmware.bin
-            app/.pio/build/drdro_f411ce/firmware.hex
-            app/.pio/build/drdro_f411ce/firmware.elf
-            bootloader/.pio/build/bootloader/firmware.bin
-            bootloader/.pio/build/bootloader/firmware.hex
-            bootloader/.pio/build/bootloader/firmware.elf
-            factory.hex
+            dist/drdro-app.bin
+            dist/drdro-app.hex
+            dist/drdro-app.elf
+            dist/drdro-bootloader.bin
+            dist/drdro-bootloader.hex
+            dist/drdro-bootloader.elf
+            dist/drdro-factory.hex

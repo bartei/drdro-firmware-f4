@@ -15,6 +15,27 @@ static uint32_t g_ramVectors[128] __attribute__((aligned(0x200)));
 
 void SystemClock_Config(void);
 
+/* Hand off to the IAP bootloader by JUMPING to 0x08000000 — never NVIC_SystemReset().
+ * A system reset re-samples the floating BOOT0 pin and can boot the ST system ROM
+ * (see HARDWARE.md HW-1); a jump never samples BOOT0 and preserves the no-init RAM
+ * BOOT_FLAG. Tears down the running app (mask IRQs, stop SysTick, clear NVIC, switch to
+ * MSP) then branches to the bootloader's reset vector. */
+void EnterBootloader(void) {
+  __disable_irq();
+  SysTick->CTRL = 0U; SysTick->LOAD = 0U; SysTick->VAL = 0U;
+  for (int i = 0; i < 8; i++) { NVIC->ICER[i] = 0xFFFFFFFFU; NVIC->ICPR[i] = 0xFFFFFFFFU; }
+  uint32_t sp = *(volatile uint32_t *)BL_BASE_ADDR;
+  uint32_t pc = *(volatile uint32_t *)(BL_BASE_ADDR + 4U);
+  __set_CONTROL(0);                 /* leave the FreeRTOS task PSP — run on MSP */
+  __ISB();
+  SCB->VTOR = BL_BASE_ADDR;
+  __set_MSP(sp);
+  __DSB(); __ISB();
+  __enable_irq();                   /* bootloader needs SysTick/flash IRQs; none pending */
+  ((void (*)(void))pc)();
+  while (1) { }                     /* not reached */
+}
+
 /**
   * @brief  The application entry point.
   * @retval int

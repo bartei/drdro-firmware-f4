@@ -331,10 +331,10 @@ void ProtocolService(void) {
   sTxActive = 0;
   sRxLines++;                          /* command processed → blink the LED       */
 
-  if (sResetPending) {                 /* `update`: ack is sent (blocking TX waits */
-    osDelay(5);                        /* for TC); let the line settle, then reboot */
-    NVIC_SystemReset();                /* into the bootloader (no return)          */
-  }
+  if (sResetPending) {                 /* `update`/`reset`: ack is sent (blocking TX waits */
+    osDelay(5);                        /* for TC); let the line settle, then hand off.     */
+    EnterBootloader();                 /* JUMP to the bootloader (BOOT0-safe; no return).  */
+  }                                    /* BOOT_FLAG (set by `update`) selects CLI vs boot. */
 }
 
 uint32_t ProtocolActivity(void) { return sRxLines; }

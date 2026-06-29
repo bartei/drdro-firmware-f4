@@ -17,6 +17,7 @@ int     SettingsSave(const rampsSharedData_t *s) { (void)s; return 0; }
 int     SettingsLoad(rampsSharedData_t *s)       { (void)s; return 1; }
 int     SettingsBankSet(uint8_t bank)            { (void)bank; return 0; }
 uint8_t SettingsActiveBank(void)                 { return 0; }
+void    EnterBootloader(void)                    { }   /* HW jump; stubbed for host tests */
 
 /* ---- TX capture (called by the mock HAL_UART_Transmit) ------------------- */
 static char   cap[1024];

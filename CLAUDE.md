@@ -6,6 +6,10 @@
 Firmware for the drDRO rotary-controller board (STM32F411CEU6). Migrated from the
 STM32CubeIDE project `../rotary-controller-f4` (branch `main`, v2.0.1) to PlatformIO.
 
+## Hardware
+- `HARDWARE.md` — known board-level bugs the firmware works around; **fix on the next PCB
+  revision** (HW-1: BOOT0 floats → intermittent ST-ROM boot on reset).
+
 ## Migration tracking
 - `migration_todo.md` — detailed design/reference (no checkboxes).
 - `migration_checklist.md` — one-liner progress tracker.
