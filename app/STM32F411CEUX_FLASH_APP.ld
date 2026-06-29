@@ -1,13 +1,15 @@
 /*
- * drDRO application linker script — relocated for the IAP bootloader.
+ * drDRO application linker script — Exec region for the dual-bank IAP bootloader.
  *
- * Identical to STM32F411CEUX_FLASH.ld except FLASH starts at sector 1
- * (0x08004000): sector 0 (16 KB @ 0x08000000) is reserved for the bootloader
- * and is never touched by a firmware update. The app sets SCB->VTOR to this
- * base early in main() (and the bootloader sets it before jumping here).
+ * The app is linked once at the Exec region (sector 5, 0x08020000, 128 KB) and runs
+ * there (DC1 copy-on-activate; see dualbank_design.md). The bootloader copies the
+ * active bank into Exec before jumping; the app also sets SCB->VTOR = APP_EXEC_BASE
+ * early in main() so a direct ST-Link flash to Exec still boots.
  *
- *   Bootloader : sector 0      0x08000000  16 KB   (never erased by update)
- *   Application: sectors 1..7  0x08004000  496 KB  (this image)
+ *   Bootloader  sector 0      0x08000000  16 KB   (never erased)
+ *   Settings    sector 1      0x08004000  16 KB
+ *   Exec        sector 5      0x08020000 128 KB   (this image)
+ *   Bank 0/1    sectors 6/7   0x08040000 / 0x08060000  128 KB each (storage)
  */
 
 /* Entry Point */
@@ -26,7 +28,7 @@ _Min_Stack_Size = 0x400; /* required amount of stack */
 MEMORY
 {
   RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 128K - 16
-  FLASH    (rx)    : ORIGIN = 0x8004000,   LENGTH = 496K
+  FLASH    (rx)    : ORIGIN = 0x8020000,   LENGTH = 128K
 }
 
 /* Sections */

@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+"""drDRO firmware updater — dual-bank update over RS485/UART.
+
+Drives the whole cycle from the host (design: dualbank_design.md):
+  1. (app)  `update`            -> reboot into the bootloader CLI ("bootloader=ready")
+  2. (boot) `info`              -> pick the inactive bank (unless --bank given)
+  3. (boot) `flash <bank>`      -> YMODEM-send the .bin into that bank
+  4. (boot) `bank <bank>`       -> select it as the active bank (persisted)
+  5. (boot) `boot`              -> copy active bank -> Exec, jump to the new app
+
+Self-contained YMODEM sender (CRC-16, 1024-byte STX blocks) — no lrzsz needed; matches
+bootloader/src/ymodem.c. Baud is fixed at 115200 (hardware limit).
+
+Usage:
+  ./dro_update.py /dev/ttyACM0 firmware.bin              # auto-pick inactive bank
+  ./dro_update.py /dev/ttyACM0 firmware.bin --bank 1     # force a bank
+  ./dro_update.py /dev/ttyACM0 firmware.bin --in-bootloader --no-boot
+"""
+import argparse
+import os
+import sys
+import time
+
+try:
+    import serial  # pyserial
+except ImportError:
+    sys.exit("pyserial not found — install it (e.g. `nix-shell -p python3Packages.pyserial`).")
+
+SOH, STX, EOT, ACK, NAK, CAN, CRC_C, SUB = 0x01, 0x02, 0x04, 0x06, 0x15, 0x18, 0x43, 0x1A
+DATA_LEN = 1024
+
+
+# ---- YMODEM (sender) -------------------------------------------------------
+def crc16(data: bytes) -> int:
+    crc = 0
+    for b in data:
+        crc ^= b << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if (crc & 0x8000) else (crc << 1) & 0xFFFF
+    return crc
+
+
+def make_block(seq: int, payload: bytes) -> bytes:
+    head = SOH if len(payload) == 128 else STX
+    c = crc16(payload)
+    return bytes([head, seq & 0xFF, (~seq) & 0xFF]) + payload + bytes([c >> 8, c & 0xFF])
+
+
+def wait_for(ser, want, timeout):
+    """Discard bytes until `want` arrives (tolerates the RS485 turnaround glitch)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        b = ser.read(1)
+        if b and b[0] == want:
+            return True
+    return False
+
+
+def wait_ack(ser, timeout=2.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        b = ser.read(1)
+        if b and b[0] in (ACK, NAK, CAN):
+            return b[0]
+    return None
+
+
+def send_block(ser, block, retries=10):
+    for _ in range(retries):
+        ser.write(block); ser.flush()
+        r = wait_ack(ser)
+        if r == ACK:
+            return True
+        if r == CAN:
+            sys.exit("bootloader cancelled the transfer (CAN).")
+    return False
+
+
+def ymodem_send(ser, path):
+    data = open(path, "rb").read()
+    name = os.path.basename(path).encode()
+    size = len(data)
+    print(f"  YMODEM: {name.decode()} ({size} bytes)")
+    if not wait_for(ser, CRC_C, 30.0):
+        sys.exit("no YMODEM handshake ('C') — did `flash <bank>` start?")
+    header = (name + b"\x00" + str(size).encode() + b"\x00").ljust(128, b"\x00")
+    if not send_block(ser, make_block(0, header)):
+        sys.exit("header (block 0) not acked.")
+    if not wait_for(ser, CRC_C, 5.0):
+        sys.exit("no 'C' after header.")
+    seq = 1
+    for off in range(0, size, DATA_LEN):
+        chunk = data[off:off + DATA_LEN].ljust(DATA_LEN, bytes([SUB]))
+        if not send_block(ser, make_block(seq, chunk)):
+            sys.exit(f"block {seq} not acked.")
+        seq += 1
+        print(f"\r  {min(off + DATA_LEN, size)}/{size} bytes", end="", flush=True)
+    print()
+    for _ in range(10):                       # EOT (NAK'd once, then ACK'd)
+        ser.write(bytes([EOT])); ser.flush()
+        if wait_ack(ser) == ACK:
+            break
+    else:
+        sys.exit("EOT not acked.")
+    if wait_for(ser, CRC_C, 5.0):             # trailing null header closes the batch
+        send_block(ser, make_block(0, b"\x00" * 128))
+
+
+# ---- CLI (same wire format as the app) -------------------------------------
+def read_response(ser, timeout=3.0):
+    """Read a framed response (key=value lines until a blank line). Returns a dict."""
+    deadline = time.monotonic() + timeout
+    buf = b""
+    kv = {}
+    seen = False
+    while time.monotonic() < deadline:
+        c = ser.read(1)
+        if not c:
+            continue
+        if c == b"\n":
+            line = buf.decode("ascii", "replace").replace("\r", "").strip()
+            buf = b""
+            if line == "":
+                if seen:
+                    return kv
+                continue
+            seen = True
+            if "=" in line:
+                k, v = line.split("=", 1)
+                kv[k.strip()] = v.strip()
+        else:
+            buf += c
+    return kv
+
+
+def cli(ser, cmd, timeout=3.0):
+    ser.reset_input_buffer()
+    ser.write((cmd + "\r").encode()); ser.flush()
+    resp = read_response(ser, timeout)
+    if "error" in resp:
+        sys.exit(f"`{cmd}` -> error={resp['error']}")
+    return resp
+
+
+def enter_bootloader(ser):
+    print("requesting update (-> bootloader)...")
+    ser.reset_input_buffer()
+    ser.write(b"update\r"); ser.flush()
+    # The app acks + resets; the bootloader greets with "bootloader=ready".
+    deadline = time.monotonic() + 8.0
+    buf = b""
+    while time.monotonic() < deadline:
+        c = ser.read(1)
+        if not c:
+            continue
+        buf += c
+        if b"bootloader" in buf:
+            time.sleep(0.2); ser.reset_input_buffer()
+            return
+    sys.exit("bootloader did not announce itself (no 'bootloader=ready').")
+
+
+def main():
+    ap = argparse.ArgumentParser(description="drDRO dual-bank firmware updater (YMODEM over UART/RS485).")
+    ap.add_argument("port")
+    ap.add_argument("binary", help="app firmware .bin (linked for the Exec region)")
+    ap.add_argument("--bank", type=int, choices=(0, 1), help="target bank (default: the inactive one)")
+    ap.add_argument("--baud", type=int, default=115200)
+    ap.add_argument("--in-bootloader", action="store_true", help="board is already in the bootloader CLI")
+    ap.add_argument("--no-boot", action="store_true", help="flash + select the bank but don't boot")
+    args = ap.parse_args()
+    if not os.path.isfile(args.binary):
+        sys.exit(f"no such file: {args.binary}")
+
+    with serial.Serial(args.port, args.baud, timeout=0.2) as ser:
+        if not args.in_bootloader:
+            enter_bootloader(ser)
+
+        bank = args.bank
+        if bank is None:
+            info = cli(ser, "info")
+            active = int(info.get("bank.active", "0"))
+            bank = 1 - active
+            print(f"active bank is {active} -> flashing inactive bank {bank}")
+
+        print(f"flashing bank {bank} ...")
+        ser.reset_input_buffer()
+        ser.write(f"flash {bank}\r".encode()); ser.flush()
+        ymodem_send(ser, args.binary)
+        res = read_response(ser, 5.0)
+        if "error" in res or "flash" not in res:
+            sys.exit(f"flash failed: {res}")
+        print(f"  bank {bank} written ({res.get('size','?')} bytes)")
+
+        cli(ser, f"bank {bank}")
+        print(f"selected bank {bank} as active")
+
+        if args.no_boot:
+            print("done (--no-boot): send `boot` to run it.")
+            return
+        ser.write(b"boot\r"); ser.flush()      # copies active bank -> Exec, jumps (no framed reply)
+        print("booting new image (copying bank -> Exec) ...")
+        time.sleep(2.0)
+        # The very first command after the jump can lose its leading byte to the RS485
+        # turnaround as the app's USART comes up, so retry the version read a few times.
+        for _ in range(6):
+            ser.reset_input_buffer()
+            ser.write(b"version\r"); ser.flush()
+            resp = read_response(ser, 1.5)
+            if "version" in resp:
+                print(f"app is up: version={resp['version']}")
+                return
+            time.sleep(0.4)
+        print("booted, but no version response yet — check manually with `version`.")
+
+
+if __name__ == "__main__":
+    main()

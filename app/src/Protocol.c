@@ -17,6 +17,7 @@
 #include "cmsis_os2.h"
 #include "Protocol.h"
 #include "Bootloader.h"
+#include "SettingsStore.h"
 
 /* ---- bound UART + shared data ------------------------------------------- */
 static UART_HandleTypeDef *sUart = NULL;
@@ -206,6 +207,11 @@ static void cmdSta(int argc, char **argv) {
   if (spd) emitVar(spd);
 }
 
+/* A flash write (save / bank select) stalls the single-bank flash bus and freezes the
+ * step ISR, so gate it on motion being stopped (servo.mode == 0). Lifted once the ISR
+ * is relocated to RAM (dualbank_todo.md D2). */
+static int motionIdle(void) { return sShared->fastData.servoMode == 0; }
+
 /* Enter the IAP bootloader: arm the handshake word, ack, then reset (done in
  * ProtocolService once the ack has fully left the wire). See include/Bootloader.h. */
 static volatile uint8_t sResetPending = 0;
@@ -216,14 +222,50 @@ static void cmdUpdate(int argc, char **argv) {
   respKV("update", "ready");
 }
 
+/* Plain system reset (no bootloader request) — lets the client drive the boot cycle.
+ * NOTE: a reset re-samples the board's floating BOOT0 (can land in the ST ROM); the
+ * robust app->bootloader path (jump, not reset) is the D2/B5 follow-up. */
+static void cmdReset(int argc, char **argv) {
+  (void)argc; (void)argv;
+  sResetPending = 1;
+  respKV("reset", "ok");
+}
+
+static void cmdSave(int argc, char **argv) {
+  (void)argc; (void)argv;
+  if (!motionIdle())                 { respError("busy (stop motion first)"); return; }
+  if (SettingsSave(sShared) != 0)    { respError("flash write"); return; }
+  respKV("save", "ok");
+}
+static void cmdLoad(int argc, char **argv) {
+  (void)argc; (void)argv;
+  respKV("load", SettingsLoad(sShared) ? "ok" : "default");
+}
+static void cmdBank(int argc, char **argv) {
+  char buf[4];
+  if (argc < 2) {                    /* report the persisted active bank */
+    snprintf(buf, sizeof(buf), "%u", (unsigned)SettingsActiveBank());
+    respKV("bank.active", buf);
+    return;
+  }
+  if ((argv[1][0] != '0' && argv[1][0] != '1') || argv[1][1]) { respError("usage: bank <0|1>"); return; }
+  if (!motionIdle())                 { respError("busy (stop motion first)"); return; }
+  if (SettingsBankSet((uint8_t)(argv[1][0] - '0')) != 0) { respError("flash write"); return; }
+  respKV("bank.active", argv[1]);
+}
+
 static const cmd_t kCommands[] = {
   { "sta",      cmdSta,      "fast read: scale positions + speeds" },
   { "set",      cmdSet,      "set <name> [idx] <value>" },
   { "get",      cmdGet,      "get <name>" },
   { "settings", cmdSettings, "dump all variables" },
+  { "save",     cmdSave,     "persist settings to flash (motion stopped)" },
+  { "load",     cmdLoad,     "reload settings from flash" },
+  { "bank",     cmdBank,     "bank [<0|1>] — active bank: report, or select for next boot" },
   { "version",  cmdVersion,  "firmware version" },
   { "help",     cmdHelp,     "list commands" },
   { "update",   cmdUpdate,   "reboot into the firmware-update bootloader" },
+  { "reset",    cmdReset,    "system reset" },
   { NULL, NULL, NULL },
 };
 

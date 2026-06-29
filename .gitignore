@@ -19,3 +19,7 @@ compile_commands.json
 
 # OS
 .DS_Store
+
+# Python bytecode (tools/)
+__pycache__/
+*.pyc

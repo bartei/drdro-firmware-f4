@@ -13,7 +13,7 @@
 typedef enum { HAL_OK = 0, HAL_ERROR, HAL_BUSY, HAL_TIMEOUT } HAL_StatusTypeDef;
 #define HAL_MAX_DELAY 0xFFFFFFFFU
 
-typedef struct { uint32_t dummy; } GPIO_TypeDef;
+typedef struct { uint32_t dummy; volatile uint32_t BSRR; } GPIO_TypeDef;  /* BSRR: fast gpioSet/Reset */
 typedef struct { void *Instance; uint32_t dummy; } TIM_HandleTypeDef;
 typedef struct { void *Instance; uint32_t dummy; } UART_HandleTypeDef;
 

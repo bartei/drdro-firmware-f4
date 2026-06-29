@@ -45,7 +45,7 @@ shipped (`protocol_todo.md` Phase 5 done); this is the next milestone.
 
 ## Phase B2 — Bootloader skeleton (DB3, DB4) — done + HW-verified 2026-06-29
 - [x] `bootloader/` standalone project: `platformio.ini` + `STM32F411CEUX_FLASH_BOOT.ld`
-      (sector 0, 16 KB) + `src/bl_main.c`. Framework startup/system. -Os, soft-float.
+      (sector 0, 16 KB) + `src/main.c`. Framework startup/system. -Os, soft-float.
 - [x] Clock (reused 8 MHz→100 MHz PLL) + USART1 init (PA10/PA15 AF7, 115200, polled)
 - [x] Jump-to-app: consume flag (DB1) + vector sanity (DB2) → set MSP/VTOR → branch
 - [x] Size: 4304 B of 16 KB (≈12 KB free for B3)
@@ -60,22 +60,45 @@ the bootloader. Fix: `-Wl,-z,max-page-size=0x4000` in the app `build_flags` (0x0
 16 KB-aligned → clean segment). Verify after any flash: `mdw 0x08000000` should be the
 bootloader's vector table, not `464c457f` ("\x7fELF"). Linker-only changes need `pio run -t clean`.
 
-## Phase B3 — Flash programming + YMODEM receive
-- [ ] Flash driver: erase app sectors 1–7, program word/byte, read-back verify (HAL_FLASH)
-- [ ] Minimal YMODEM receiver (SOH/STX, CRC-16, ACK/NAK, filename/size header) — self-contained, no libs
-- [ ] Receive image → erase → write → verify → clear flag → reset into the new app
-- [ ] Failure handling: abort leaves app erased but bootloader intact (recoverable retry)
+## Phase B3 — Flash programming + YMODEM receive — code done 2026-06-29
+- [x] Flash driver (`src/flash.c`): erase app sectors 1–7, word program, read-back verify
+      (HAL_FLASH). Lazy per-sector erase in ascending order; **never** touches sector 0.
+- [x] Minimal YMODEM receiver (`src/ymodem.c`): SOH/STX, CRC-16, ACK/NAK, EOT handshake,
+      block-0 filename/size header, trailing null header — self-contained, no libs.
+- [x] `update mode` wires it: `ymodem_receive()` streams to flash → reset. Flag is already
+      consumed at boot, so a valid new app boots normally on the reset.
+- [x] Failure handling: lazy erase wipes the vector-table sector first, so a partial/aborted
+      transfer leaves the app invalid → `app_valid()` fails → bootloader re-enters update mode.
+      Sector 0 (bootloader) is never erased, so it always stays recoverable.
+- [x] Size: ~6.6 KB of 16 KB (was 4304; ~9 KB free). Builds green (`pio run -d bootloader`).
+- [x] **HW-verified 2026-06-29** end-to-end with `tools/dro_update.py`: 44640-byte image sent over
+      YMODEM, flash readback byte-for-byte matched the `.bin`, app booted and answered `version`.
+- [x] **BOOT0 fix (critical):** post-update handoff now **jumps to the app** instead of
+      `NVIC_SystemReset()` — this board's BOOT0 floats, so a system reset intermittently boots the
+      **ST system-memory ROM** (PC=0x1FFFxxxx, lone `\x00` on serial) instead of flash. A jump never
+      re-samples BOOT0. On a failed/aborted transfer the bootloader now holds in update mode
+      ("power-cycle to retry") rather than resetting into the ROM.
+- Note: also renamed `src/bl_main.c` → `src/main.c` (own folder makes the prefix redundant).
 - Note: bootloader TX has no RS485 settle delay yet, so the first response byte can be a `\xff`
   turnaround glitch (seen on the B2 banner). YMODEM keys on control chars (C/ACK/NAK) and is
   tolerant, but the bootloader is the YMODEM *receiver* (mostly RX) so it's likely a non-issue;
   add a settle delay before any bootloader TX if the host's YMODEM gets confused.
 
 ## Phase B4 — Host tooling + packaging
-- [ ] Host updater: send `update`, wait for reset, YMODEM-send the `.bin` (lrzsz `sb` or pyserial)
+- [x] Host updater `tools/dro_update.py` (HW-verified 2026-06-29): sends `update`, waits for the
+      bootloader 'C' handshake, then YMODEM-sends the `.bin`. Self-contained CRC-16 sender (no
+      lrzsz), 1024-byte STX blocks, glitch-tolerant ACK wait for the RS485 turnaround. pyserial
+      only. Drove a full `update` → reset → YMODEM → reflash → app-live cycle on the bench.
 - [ ] Combined factory image: bootloader + app into one `.hex` (srecord) for first-time flashing
 - [ ] CI: build both env artifacts; keep release publishing app + combined image
 
 ## Phase B5 — Hardware verification
-- [ ] End-to-end update over RS485 from a known-good app to a new app
-- [ ] Bricked-app recovery: corrupt app → bootloader still enters update mode
-- [ ] Optional: boot-time "knock" window to force update even if the app never runs
+- [x] End-to-end update over RS485 from a known-good app to a new app — **done 2026-06-29**
+      (`tools/dro_update.py`, 44640-byte image, readback verified, app answered `version` after).
+- [ ] Bricked-app recovery: corrupt app → bootloader still enters update mode (DB2 vector check).
+- [ ] **Follow-up — robust `update` trigger:** the app still enters the bootloader via
+      `NVIC_SystemReset()`, which re-samples the floating BOOT0 and can land in the ST ROM (it
+      worked in testing but isn't guaranteed). Make the app **jump** to 0x08000000 instead
+      (RAM/`BOOT_FLAG` survive a jump), after tearing down FreeRTOS/IRQs/SysTick. Real HW fix: tie
+      BOOT0 to GND. See the BOOT0 note in Phase B3.
+- [ ] Optional: boot-time "knock" window to force update even if the app never runs.

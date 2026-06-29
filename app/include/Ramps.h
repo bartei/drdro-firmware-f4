@@ -23,6 +23,17 @@
 #include "stm32f4xx_hal.h"
 #include "cmsis_os2.h"
 #include "Scales.h"
+#include "BlinkCode.h"
+
+/* USR_LED diagnostic code rendered by userLedTask (BlinkCode.h). Default BLINK_APP. */
+extern volatile uint8_t gBlinkCode;
+
+/* Fast GPIO writes — a single store to BSRR, far cheaper than HAL_GPIO_WritePin and,
+ * being inline (no flash call), safe on the motion ISR hot path / in RAM-resident code.
+ * Set = write the pin bit; reset = write it shifted into the high half. (BSRR idiom from
+ * the old multi_servo branch.) */
+static inline void gpioSet(GPIO_TypeDef *port, uint16_t pin)   { port->BSRR = pin; }
+static inline void gpioReset(GPIO_TypeDef *port, uint16_t pin) { port->BSRR = (uint32_t)pin << 16; }
 
 #define STEP_PIN GPIO_PIN_0
 #define STEP_GPIO_PORT GPIOA

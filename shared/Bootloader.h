@@ -3,24 +3,52 @@
  * MIT.
  *
  * Shared contract between the drDRO application and its IAP bootloader.
- * Design: protocol_design.md Part B; plan: bootloader_todo.md.
+ * Design: protocol_design.md Part B + dualbank_design.md; plan: dualbank_todo.md.
  *
- * Flash layout (F411CE, 512 KB):
- *   sector 0       0x08000000  16 KB   bootloader (never erased by an update)
- *   sectors 1..7   0x08004000  496 KB  application (VTOR relocated here)
+ * Flash layout (F411CE, 512 KB — sectors 4×16K / 1×64K / 3×128K):
+ *   sector 0       0x08000000  16 KB   bootloader (never erased)
+ *   sector 1       0x08004000  16 KB   settings (see Settings.h)
+ *   sectors 2..4   0x08008000  96 KB   reserved (future / recovery)
+ *   sector 5       0x08020000 128 KB   Exec    — the app runs here (single build)
+ *   sector 6       0x08040000 128 KB   Bank 0  — stored app version
+ *   sector 7       0x08060000 128 KB   Bank 1  — stored app version
+ *
+ * Banking is copy-on-activate (DC1): the app is linked once at APP_EXEC_BASE; banks are
+ * storage. On boot the bootloader copies the active bank into Exec (if stale) and jumps.
  *
  * Update handshake: the app's `update` command writes BOOT_FLAG = BOOT_MAGIC into a
  * reserved no-init RAM word (top 16 bytes of RAM, carved out by both linker scripts),
- * then resets. The bootloader reads it: magic => enter update (YMODEM); otherwise jump
- * to the app. The bootloader clears it once consumed so a later reset boots normally.
+ * then resets — a one-shot "enter the bootloader" request that costs no flash wear. The
+ * bootloader clears it once consumed. Persistent boot target lives in Settings.h.
  */
 #ifndef BOOTLOADER_H
 #define BOOTLOADER_H
 
 #include <stdint.h>
 
-#define BL_SECTOR_SIZE   0x4000U       /* sector 0 = 16 KB (bootloader) */
-#define APP_BASE_ADDR    0x08004000U   /* sector 1: application + relocated vector table */
+/* --- flash regions (base + erasable sector index) --- */
+#define BL_BASE_ADDR     0x08000000U   /* sector 0: bootloader */
+#define BL_SECTOR        0U
+#define SETTINGS_BASE    0x08004000U   /* sector 1: settings (Settings.h) */
+#define SETTINGS_SECTOR  1U
+
+#define APP_EXEC_BASE    0x08020000U   /* sector 5: app execution region (VTOR here) */
+#define APP_EXEC_SECTOR  5U
+#define APP_REGION_SIZE  0x20000U      /* 128 KB per region (Exec / banks) */
+#define APP_REGION_END   (APP_EXEC_BASE + APP_REGION_SIZE)
+
+#define BANK_COUNT       2U
+#define BANK0_BASE       0x08040000U   /* sector 6 */
+#define BANK0_SECTOR     6U
+#define BANK1_BASE       0x08060000U   /* sector 7 */
+#define BANK1_SECTOR     7U
+
+/* Bank n base / sector (n in 0..BANK_COUNT-1). */
+#define BANK_BASE(n)     ((n) ? BANK1_BASE   : BANK0_BASE)
+#define BANK_SECTOR(n)   ((n) ? BANK1_SECTOR : BANK0_SECTOR)
+
+/* Persistent boot mode (Settings.boot_mode). */
+typedef enum { BOOT_MODE_APP = 0, BOOT_MODE_BOOTLOADER = 1 } boot_mode_t;
 
 /* No-init handshake word. Must match the LENGTH reserve in both linker scripts
  * (RAM = 128K - 16 => this address is just past _estack, untouched by stack/heap). */

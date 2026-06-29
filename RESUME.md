@@ -6,8 +6,16 @@ remote machine — this file does). Detail lives in the linked docs.
 
 **Resuming:** `git checkout feat/iap-bootloader`. Repo is now two projects — `app/` + `bootloader/`
 (+ `shared/`); build with `pio run -d app` / `pio run -d bootloader`. Protocol shipped + verified;
-bootloader B0–B2 done & HW-verified. **Next = B3** (flash driver + YMODEM receiver): see
-`bootloader_todo.md`. Branch not pushed to `main` (would release an incomplete IAP setup).
+bootloader **B0–B3 + host updater HW-verified** — a full `update`→YMODEM→reflash→app-live cycle
+ran on the bench (`tools/dro_update.py`). **Next = finish B4** (combined factory `.hex` + CI), then
+the robust `update` trigger (BOOT0 follow-up, see below). Branch not pushed to `main` (would release
+an incomplete IAP setup).
+
+> ⚠️ **BOOT0 floats on this board** — system resets (`NVIC_SystemReset`/AIRCR, incl. `st-flash reset`)
+> intermittently boot the **ST system-memory ROM** (PC=0x1FFFxxxx, lone `\x00` on serial) instead of
+> flash. The bootloader now **jumps** to the app after an update (never re-samples BOOT0). On the
+> bench, retry the reset a few times until the app answers `version`. Detail: `boot0-floating-system-rom`
+> memory + `bootloader_todo.md` B3/B5.
 
 ## TL;DR
 PlatformIO firmware for the drDRO rotary controller (STM32F411CEU6). Migrated off
@@ -68,9 +76,13 @@ Protocol details/grammar: `protocol_design.md`. Variable names: §A.4 there.
    - Watch: a **self-echo guard** drops RX during TX. If responses look doubled or commands
      get eaten on the bench, that's the first knob (`sTxActive` in `app/src/Protocol.c`).
 2. **Firmware-update bootloader** — custom IAP + YMODEM @115200 (design `protocol_design.md` Part B;
-   plan/progress `bootloader_todo.md`). **B0–B2 done + HW-verified** (app relocation, `update` command,
-   bootloader boot/jump). **Next: B3** — flash erase/write driver + YMODEM receiver in the bootloader,
-   then a host updater. B4 = combined factory image + CI. (Branch: `feat/iap-bootloader`.)
+   plan/progress `bootloader_todo.md`). **B0–B3 + host updater HW-verified.** Flash erase/write/verify
+   driver (`bootloader/src/flash.c`) + self-contained YMODEM receiver (`bootloader/src/ymodem.c`) wired
+   into update mode; host updater `tools/dro_update.py` (pyserial, self-contained YMODEM sender). A full
+   `update`→reset→YMODEM→reflash→app-live cycle ran on the bench; flash readback matched the `.bin`.
+   Bootloader **jumps** to the app post-update (BOOT0 fix, see ⚠️ above). **Next:** combined factory
+   `.hex` + CI, then the robust `update` trigger (app should jump to the bootloader, not reset).
+   (Branch: `feat/iap-bootloader`.)
 3. Optional: settings persistence to flash. (CI + remote: done.)
 
 ## Repo map (two projects + shared/; docs at root)
@@ -84,7 +96,7 @@ Protocol details/grammar: `protocol_design.md`. Variable names: §A.4 there.
 - `STM32F411CEUX_FLASH_APP.ld` (app @ 0x08004000) + `STM32F411CEUX_FLASH.ld` (original 0-based, reference).
 - `test/` — native unit tests + `test/mocks/`.
 
-**`bootloader/`** — IAP bootloader project: `src/bl_main.c`, `STM32F411CEUX_FLASH_BOOT.ld` (sector 0 @ 0x08000000).
+**`bootloader/`** — IAP bootloader project: `src/main.c`, `STM32F411CEUX_FLASH_BOOT.ld` (sector 0 @ 0x08000000).
 **`shared/Bootloader.h`** — app↔bootloader contract (flash layout, handshake word); both projects `-I ../shared`.
 `docs/` — frozen `.ioc` reference + RAM ld.
 - Old project for reference: `../rotary-controller-f4` (branch `main`).

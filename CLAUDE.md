@@ -39,7 +39,7 @@ STM32CubeIDE project `../rotary-controller-f4` (branch `main`, v2.0.1) to Platfo
   - `include/` app + config headers (`FreeRTOSConfig.h`, `stm32f4xx_hal_conf.h` — globally visible to vendored libs).
   - `lib/FreeRTOS` — vendored middleware.  `support/` — build extra scripts.  `test/` — native unit tests + mocks.
   - `STM32F411CEUX_FLASH_APP.ld` (app @ `0x08004000`) + `STM32F411CEUX_FLASH.ld` (original 0-based, reference).
-- `bootloader/` — IAP bootloader project (`src/bl_main.c`, own ldscript @ `0x08000000`). See `bootloader_todo.md`.
+- `bootloader/` — IAP bootloader project (`src/main.c`, own ldscript @ `0x08000000`). See `bootloader_todo.md`.
 - `shared/Bootloader.h` — app↔bootloader contract (flash layout, handshake word); both projects add `-I ../shared`.
 - `docs/` — frozen `rotary-controller-f4.ioc` reference + RAM linker script.
 

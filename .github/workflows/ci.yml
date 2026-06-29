@@ -41,6 +41,12 @@ jobs:
       - name: Run native unit tests
         run: pio test -d app -e native
 
+      - name: Build combined factory image (bootloader + app @ Exec)
+        run: |
+          python tools/make_factory.py factory.hex \
+            bootloader/.pio/build/bootloader/firmware.hex \
+            app/.pio/build/drdro_f411ce/firmware.hex
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -52,4 +58,5 @@ jobs:
             bootloader/.pio/build/bootloader/firmware.elf
             bootloader/.pio/build/bootloader/firmware.bin
             bootloader/.pio/build/bootloader/firmware.hex
+            factory.hex
           if-no-files-found: error

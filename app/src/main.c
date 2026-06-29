@@ -3,7 +3,8 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include "Bootloader.h"   /* APP_BASE_ADDR — keep VTOR in sync with the linker/bootloader */
+#include "Bootloader.h"   /* APP_EXEC_BASE — keep VTOR in sync with the linker/bootloader */
+#include "SettingsStore.h"
 
 rampsHandler_t RampsData;
 
@@ -15,11 +16,11 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
-  /* IAP: this image lives at sectors 1..7 (0x08004000); sector 0 holds the bootloader.
-   * The bootloader sets VTOR before jumping here, but set it ourselves too so the
-   * app is correct when run standalone (debugger/ST-Link direct flash). Must precede
+  /* IAP: this image runs from the Exec region (0x08020000); the bootloader copies the
+   * active bank here and sets VTOR before jumping, but set it ourselves too so the app
+   * is correct when run standalone (debugger/ST-Link direct flash to Exec). Must precede
    * HAL_Init() so SysTick/NVIC use the relocated table. */
-  SCB->VTOR = APP_BASE_ADDR;
+  SCB->VTOR = APP_EXEC_BASE;
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
@@ -48,6 +49,10 @@ int main(void)
   RampsData.synchroRefreshTimer = &htim9;
   RampsData.commUart = &huart1;
   RampsStart(&RampsData);
+
+  /* Override compiled defaults with persisted settings (scales ratios, servo cfg)
+   * if a valid image is present in flash. Before the scheduler starts. */
+  SettingsApply(&RampsData.shared);
 
   /* Init and start the scheduler (tasks were created in RampsStart) */
   osKernelInitialize();

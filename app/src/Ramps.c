@@ -210,10 +210,10 @@ static inline void updateJogPosition(rampsHandler_t *data) {
 
 void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 //  HAL_GPIO_TogglePin(SPARE_1_GPIO_PORT, SPARE_1_PIN);
-//  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_SET);
+//  gpioSet(SPARE_2_GPIO_PORT, SPARE_1_PIN);
   uint32_t start = DWT->CYCCNT;
   // Reset the step pin as soon as possible
-  HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_RESET);
+  gpioReset(STEP_GPIO_PORT, STEP_PIN);
   rampsSharedData_t *shared = &(data->shared);
   shared->executionIntervalPrevious = shared->executionIntervalCurrent;
   shared->executionIntervalCurrent = DWT->CYCCNT;
@@ -253,15 +253,15 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
     if (change > 0) {
       direction = 1;
-      HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_SET);
+      gpioSet(DIR_GPIO_PORT, DIR_PIN);
     }
     if (change < 0) {
-      HAL_GPIO_WritePin(DIR_GPIO_PORT, DIR_PIN, GPIO_PIN_RESET);
+      gpioReset(DIR_GPIO_PORT, DIR_PIN);
       direction = -1;
     }
 
     if (direction == data->servoPreviousDirection && change != 0) {
-      HAL_GPIO_WritePin(STEP_GPIO_PORT, STEP_PIN, GPIO_PIN_SET);
+      gpioSet(STEP_GPIO_PORT, STEP_PIN);
       shared->servo.currentSteps += direction;
     }
 
@@ -271,23 +271,25 @@ void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   servoCyclesCounter = (servoCyclesCounter + 1) % servoCycles;
 
   shared->executionCycles = DWT->CYCCNT - start;
-  HAL_GPIO_WritePin(SPARE_2_GPIO_PORT, SPARE_1_PIN, GPIO_PIN_RESET);
+  gpioReset(SPARE_2_GPIO_PORT, SPARE_1_PIN);
 }
 
+/* Repeating diagnostic heartbeat: gBlinkCode short blinks, then a gap, ~once per second
+ * (BlinkCode.h). Default BLINK_APP (1) = running normally; raise gBlinkCode to surface a
+ * fault code visually. */
+volatile uint8_t gBlinkCode = BLINK_APP;
+
 _Noreturn void userLedTask(__attribute__((unused)) void *argument) {
-  uint32_t oldInCnt = 0;
-
   for (;;) {
-    osDelay(50);
-    if (oldInCnt != ProtocolActivity()) {
-      oldInCnt = ProtocolActivity();
-      HAL_GPIO_TogglePin(USR_LED_GPIO_Port, USR_LED_Pin);
-      HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_RESET);
-      osDelay(25);
-      HAL_GPIO_WritePin(USR_LED_GPIO_Port, USR_LED_Pin, GPIO_PIN_SET);
+    uint8_t code = gBlinkCode ? gBlinkCode : 1;
+    for (uint8_t i = 0; i < code; i++) {
+      gpioReset(USR_LED_GPIO_Port, USR_LED_Pin);   /* active-low: LOW = LED on  */
+      osDelay(BLINK_ON_MS);
+      gpioSet(USR_LED_GPIO_Port, USR_LED_Pin);     /* HIGH = LED off            */
+      osDelay(BLINK_OFF_MS);
     }
+    osDelay(BLINK_GAP_MS);                          /* gap (LED off) before repeat */
   }
-
 }
 
 const int32_t updateSpeedTaskTicks = 50;
@@ -356,7 +358,7 @@ _Noreturn void servoEnableTask(void *argument) {
     rampsData->shared.fastData.servoSpeed = (float)(int32_t)(rampsData->shared.servo.currentSteps - previousPosition) * 10;
     previousPosition = rampsData->shared.servo.currentSteps;
 
-    if (shared->fastData.servoMode != 0) HAL_GPIO_WritePin(ENA_GPIO_PORT, ENA_PIN, GPIO_PIN_RESET);
-    if (shared->fastData.servoMode == 0) HAL_GPIO_WritePin(ENA_GPIO_PORT, ENA_PIN, GPIO_PIN_SET);
+    if (shared->fastData.servoMode != 0) gpioReset(ENA_GPIO_PORT, ENA_PIN);
+    if (shared->fastData.servoMode == 0) gpioSet(ENA_GPIO_PORT, ENA_PIN);
   }
 }

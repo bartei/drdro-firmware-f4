@@ -8,6 +8,14 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "Protocol.h"
+#include "SettingsStore.h"
+
+/* ---- SettingsStore stubs (real impl is HW-only; no flash here) ----------- */
+void    SettingsApply(rampsSharedData_t *s)      { (void)s; }
+int     SettingsSave(const rampsSharedData_t *s) { (void)s; return 0; }
+int     SettingsLoad(rampsSharedData_t *s)       { (void)s; return 1; }
+int     SettingsBankSet(uint8_t bank)            { (void)bank; return 0; }
+uint8_t SettingsActiveBank(void)                 { return 0; }
 
 /* ---- TX capture (called by the mock HAL_UART_Transmit) ------------------- */
 static char   cap[1024];
@@ -168,6 +176,32 @@ static void test_activity_increments(void) {
   TEST_ASSERT_EQUAL_UINT32(before + 1, ProtocolActivity());
 }
 
+/* ---- dual-bank / settings commands -------------------------------------- */
+static void test_reset_acks(void) {
+  run("reset");
+  TEST_ASSERT_NOT_NULL(strstr(cap, "reset=ok"));
+}
+static void test_save_ok_when_idle(void) {
+  shared.fastData.servoMode = 0;          /* motion stopped */
+  run("save");
+  TEST_ASSERT_NOT_NULL(strstr(cap, "save=ok"));
+}
+static void test_save_busy_when_moving(void) {
+  shared.fastData.servoMode = 2;          /* jog: not idle */
+  run("save");
+  TEST_ASSERT_NOT_NULL(strstr(cap, "error="));
+  TEST_ASSERT_NULL(strstr(cap, "save=ok"));
+}
+static void test_bank_reports_active(void) {
+  run("bank");
+  TEST_ASSERT_NOT_NULL(strstr(cap, "bank.active="));
+}
+static void test_bank_select_ok(void) {
+  shared.fastData.servoMode = 0;
+  run("bank 1");
+  TEST_ASSERT_NOT_NULL(strstr(cap, "bank.active=1"));
+}
+
 int main(void) {
   UNITY_BEGIN();
   RUN_TEST(test_version);
@@ -191,5 +225,10 @@ int main(void) {
   RUN_TEST(test_empty_with_no_history);
   RUN_TEST(test_feed_bytes_crlf_single_line);
   RUN_TEST(test_activity_increments);
+  RUN_TEST(test_reset_acks);
+  RUN_TEST(test_save_ok_when_idle);
+  RUN_TEST(test_save_busy_when_moving);
+  RUN_TEST(test_bank_reports_active);
+  RUN_TEST(test_bank_select_ok);
   return UNITY_END();
 }
