@@ -4,15 +4,15 @@ Phased progress tracker. Detail in `protocol_design.md`. Bootloader is a separat
 doc (`bootloader_todo.md`), after this.
 
 ## Phase 1 — Protocol core (compiles alongside Modbus; callback-free)
-- [ ] `include/Protocol.h` + `src/Protocol.c` skeleton
-- [ ] Line buffer + tokenizer
-- [ ] Command table + dispatcher
-- [ ] Response builder (empty-line framing, `error=`)
-- [ ] TX helper (blocking `HAL_UART_Transmit`; auto-direction)
-- [ ] Checksum: validate optional `*HH` on requests; append `crc=HH` to responses
-- [ ] `version` (build-time `FW_VERSION` via git extra script)
-- [ ] `help` (command-table walk)
-- [ ] Empty-line repeat (store last line)
+- [x] `include/Protocol.h` + `src/Protocol.c` skeleton
+- [x] Line buffer + tokenizer
+- [x] Command table + dispatcher
+- [x] Response builder (empty-line framing, `error=`)
+- [x] TX helper (blocking `HAL_UART_Transmit`; auto-direction)
+- [x] Checksum: validate optional `*HH` on requests; append `crc=HH` to responses
+- [x] `version` (build-time `FW_VERSION` via git extra script)
+- [x] `help` (command-table walk)
+- [x] Empty-line repeat (store last line)
 
 ## Phase 2 — Variable registry (array-aware) [needs final names]
 - [ ] Finalize dotted variable names (design A.4)
