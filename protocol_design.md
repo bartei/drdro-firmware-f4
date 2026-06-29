@@ -19,6 +19,8 @@ line protocol over RS485, and later add firmware update over the same bus.
 - **Array variables are returned as one grouped line:** `group.field=v0,v1,v2,v3`
   (full dotted name kept; values comma-joined). Scalars: `group.field=v`.
 - Single device on the bus → **no addressing** (future: see Parking lot).
+- **Integrity:** optional `*HH` checksum suffix on requests; every response ends with
+  a `crc=HH` line (before the empty line). See A.8.
 - **Bandwidth-conscious:** no literal `ok` token, no firmware echo, 115200 fixed.
 
 ### A.2 Commands (initial set)
@@ -122,6 +124,31 @@ Modbus (no UART callbacks), then do the UART hand-off as one atomic switchover.
 *Optional* if a switchable build is ever wanted: `-D COMM_PROTOCOL` / `-D COMM_MODBUS`
 build flag + per-env `lib_ignore = Modbus` (two PlatformIO envs via `extends`).
 
+### A.8 Message checksum (PROPOSED — confirm D9)
+NMEA-style, kept CLI-friendly:
+- **Algorithm:** XOR-8 of the message body bytes, 2 hex digits, uppercase
+  (e.g. `1A`). *(Alternative: CRC-8 / CRC-16-CCITT for stronger detection.)*
+- **Request:** optional `*HH` suffix before the terminator; checksum covers every
+  byte before `*`. **Present → validated** (mismatch → `error=bad checksum`);
+  **absent → accepted** (CLI mode, type by hand). `*` is reserved as the delimiter.
+- **Response:** always a final **`crc=HH`** line (XOR-8 over all response bytes
+  before it), then the terminating empty line. Clients read until the empty line,
+  pop `crc`, verify the rest.
+- **Repeat (`\n`):** no checksum (re-runs the already-validated last command).
+
+Examples:
+```
+set servo.max 720*5E\n         (checksummed request)
+→ crc=00\n \n                  (empty success body; crc over "" then the line)
+sta\n                          (CLI request, no checksum — accepted)
+→ scales.pos=12345,988,0,42\n scales.speed=10,-3,0,0\n crc=7A\n \n
+set servo.max 720*FF\n
+→ error=bad checksum\n crc=..\n \n
+```
+
+**Open (D9):** algorithm = XOR-8 (proposed) vs CRC-8/16; request checksum
+**optional** (proposed, CLI-friendly) vs **mandatory**.
+
 ---
 
 ## Part B — Firmware update over UART / RS485 (later; protocol ships first)
@@ -188,6 +215,9 @@ no DE GPIO, no hardware change. Applies to both protocol TX and bootloader TX.
 - **D8 — Modbus vs Protocol:** never coexist at runtime; **clean replacement**
   (git keeps the Modbus build as fallback); optional `-D COMM_*` toggle if a
   switchable build is ever wanted.
+- **D9 — Checksum (PROPOSED):** XOR-8 hex; `*HH` suffix optional on requests
+  (CLI-friendly), `crc=HH` line always on responses. *Confirm algorithm strength &
+  optional-vs-mandatory.*
 
 ## Parking lot (future, not now — "FFI")
 - **Multi-board addressing:** prefix requests with an address (`<addr><command>\n`).

@@ -9,6 +9,7 @@ doc (`bootloader_todo.md`), after this.
 - [ ] Command table + dispatcher
 - [ ] Response builder (empty-line framing, `error=`)
 - [ ] TX helper (blocking `HAL_UART_Transmit`; auto-direction)
+- [ ] Checksum: validate optional `*HH` on requests; append `crc=HH` to responses
 - [ ] `version` (build-time `FW_VERSION` via git extra script)
 - [ ] `help` (command-table walk)
 - [ ] Empty-line repeat (store last line)
