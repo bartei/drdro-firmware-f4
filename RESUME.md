@@ -1,8 +1,13 @@
 # RESUME — drDRO firmware (read this first when picking up)
 
-Last updated: 2026-06-28. Branch `main`, last commit `a0a6d47`.
+Last updated: 2026-06-29. Branch **`feat/iap-bootloader`** (NOT yet on `main`), last commit `3027be0`.
 This is the portable handoff (the local `~/.claude` memory does NOT travel to a
 remote machine — this file does). Detail lives in the linked docs.
+
+**Resuming:** `git checkout feat/iap-bootloader`. Repo is now two projects — `app/` + `bootloader/`
+(+ `shared/`); build with `pio run -d app` / `pio run -d bootloader`. Protocol shipped + verified;
+bootloader B0–B2 done & HW-verified. **Next = B3** (flash driver + YMODEM receiver): see
+`bootloader_todo.md`. Branch not pushed to `main` (would release an incomplete IAP setup).
 
 ## TL;DR
 PlatformIO firmware for the drDRO rotary controller (STM32F411CEU6). Migrated off
