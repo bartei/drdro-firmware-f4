@@ -16,6 +16,7 @@
 #include <stddef.h>
 #include "cmsis_os2.h"
 #include "Protocol.h"
+#include "Bootloader.h"
 
 /* ---- bound UART + shared data ------------------------------------------- */
 static UART_HandleTypeDef *sUart = NULL;
@@ -205,6 +206,16 @@ static void cmdSta(int argc, char **argv) {
   if (spd) emitVar(spd);
 }
 
+/* Enter the IAP bootloader: arm the handshake word, ack, then reset (done in
+ * ProtocolService once the ack has fully left the wire). See include/Bootloader.h. */
+static volatile uint8_t sResetPending = 0;
+static void cmdUpdate(int argc, char **argv) {
+  (void)argc; (void)argv;
+  BOOT_FLAG = BOOT_MAGIC;
+  sResetPending = 1;
+  respKV("update", "ready");
+}
+
 static const cmd_t kCommands[] = {
   { "sta",      cmdSta,      "fast read: scale positions + speeds" },
   { "set",      cmdSet,      "set <name> [idx] <value>" },
@@ -212,6 +223,7 @@ static const cmd_t kCommands[] = {
   { "settings", cmdSettings, "dump all variables" },
   { "version",  cmdVersion,  "firmware version" },
   { "help",     cmdHelp,     "list commands" },
+  { "update",   cmdUpdate,   "reboot into the firmware-update bootloader" },
   { NULL, NULL, NULL },
 };
 
@@ -281,6 +293,11 @@ void ProtocolService(void) {
   ProtocolProcessLine(sReady);
   sTxActive = 0;
   sRxLines++;                          /* command processed → blink the LED       */
+
+  if (sResetPending) {                 /* `update`: ack is sent (blocking TX waits */
+    osDelay(5);                        /* for TC); let the line settle, then reboot */
+    NVIC_SystemReset();                /* into the bootloader (no return)          */
+  }
 }
 
 uint32_t ProtocolActivity(void) { return sRxLines; }

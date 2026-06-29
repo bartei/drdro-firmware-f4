@@ -32,4 +32,7 @@ HAL_UART_Receive_IT(UART_HandleTypeDef *h, uint8_t *d, uint16_t n) {
   return HAL_OK;
 }
 
+/* CMSIS core: no-op on host (the `update` reset path is hardware-only). */
+static inline void NVIC_SystemReset(void) { }
+
 #endif /* MOCK_STM32F4XX_HAL_H */

@@ -3,6 +3,7 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+#include "Bootloader.h"   /* APP_BASE_ADDR — keep VTOR in sync with the linker/bootloader */
 
 rampsHandler_t RampsData;
 
@@ -14,6 +15,11 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
+  /* IAP: this image lives at sectors 1..7 (0x08004000); sector 0 holds the bootloader.
+   * The bootloader sets VTOR before jumping here, but set it ourselves too so the
+   * app is correct when run standalone (debugger/ST-Link direct flash). Must precede
+   * HAL_Init() so SysTick/NVIC use the relocated table. */
+  SCB->VTOR = APP_BASE_ADDR;
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
