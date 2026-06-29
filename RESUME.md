@@ -46,6 +46,14 @@ Protocol details/grammar: `protocol_design.md`. Variable names: §A.4 there.
 ## Status — what's next
 1. **Phase 5 — hardware verification** (`protocol_todo.md`): exercise every command over
    RS485, the empty-line repeat, and error/checksum paths; A/B against old Modbus behavior.
+   - **In progress (2026-06-29):** protocol confirmed live on the bench — `version`,
+     `get`, `sta`, `settings` all return correct data at 115200 (after the HSE_VALUE fix
+     above). Probe harness: `scratchpad/probe.py` (pyserial), adapter on `/dev/ttyACM2`.
+   - **Open bug — RS485 turnaround:** the first ~6–7 bytes of each response are corrupted
+     (the leading *key* token; value+crc arrive clean), consistent with half-duplex RX→TX
+     turnaround on the auto-direction transceiver (board and/or the PC USB-RS485 adapter).
+     Candidate fix: emit a sacrificial lead-in in `respBegin()` (`src/Protocol.c`, not
+     counted toward crc) and/or a short pre-TX settle delay; verify CRC end-to-end after.
    - Watch: a **self-echo guard** drops RX during TX. If responses look doubled or commands
      get eaten on the bench, that's the first knob (`sTxActive` in `src/Protocol.c`).
 2. **Firmware-update bootloader** — custom IAP + YMODEM @115200 (design in `protocol_design.md`
@@ -63,6 +71,13 @@ Protocol details/grammar: `protocol_design.md`. Variable names: §A.4 there.
 - Old project for reference: `../rotary-controller-f4` (branch `main`).
 
 ## Gotchas (don't undo these — each was a real fix)
+- **`-D HSE_VALUE=8000000`** (in `platformio.ini` build_flags): the board crystal is 8 MHz,
+  but the stm32cube framework's `system_stm32f4xx.c`/HAL headers default `HSE_VALUE` to
+  **25 MHz**. Our `include/stm32f4xx_hal_conf.h` has 8 MHz but it's `#if !defined`-guarded
+  and loses when the framework compiles its own system file. Result without the flag:
+  `SystemCoreClock` = 312.5 MHz (chip still runs at 100 MHz via literal PLL regs, but
+  HAL computes `USART1_BRR` from the wrong clock → real baud ≈ 36.8 kbaud → all serial
+  garbage). Verified fixed: `SystemCoreClock=0x05F5E100` (100 MHz), `BRR=0x364` (115200).
 - **Hard-float**: `support/stm32_hardfloat.py` applies `-mfloat-abi=hard -mfpu=fpv4-sp-d16`
   to compile AND link; the board/framework default is soft-float, which breaks FreeRTOS `port.c`.
 - **`libArchive:false`** on `lib/FreeRTOS` (and was on Modbus): otherwise weak-symbol overrides

@@ -65,7 +65,12 @@ static void txStr(const char *s) {                  /* send + accumulate crc    
   for (const char *p = s; *p; ++p) sTxCrc ^= (uint8_t)*p;
   txRaw(s);
 }
-static void respBegin(void) { sTxCrc = 0; }
+/* RS485 is half-duplex with an auto-direction transceiver (no DE pin): after we finish
+ * receiving the command we must let the line settle before driving TX, or the opening
+ * bytes of the response are swallowed by the RX->TX turnaround. Runs in protocolTask
+ * context, so osDelay() (yields) is safe. Tune PROTOCOL_TX_SETTLE_MS on the bench. */
+#define PROTOCOL_TX_SETTLE_MS 2   /* verified clean on the bench (25/25, CRC-checked) */
+static void respBegin(void) { osDelay(PROTOCOL_TX_SETTLE_MS); sTxCrc = 0; }
 static void respKV(const char *key, const char *val) { txStr(key); txStr("="); txStr(val); txStr("\n"); }
 static void respError(const char *reason)            { txStr("error="); txStr(reason); txStr("\n"); }
 static void respEnd(void) {                          /* crc=HH then the terminating empty line */
