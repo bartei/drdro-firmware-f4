@@ -46,7 +46,6 @@
 #define SPARE_3_PIN GPIO_PIN_4
 #define SPARE_3_GPIO_PORT GPIOA
 
-
 typedef struct {
   int32_t delta;
   uint32_t oldPosition;
@@ -95,7 +94,6 @@ typedef struct {
   input_t scales[SCALES_COUNT];
   fastData_t fastData;
 } rampsSharedData_t;
-
 
 typedef struct {
   // Comm shared data (protocol register image)

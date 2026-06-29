@@ -20,10 +20,8 @@
 #include "Scales.h"
 #include "Protocol.h"
 
-
 uint16_t servoCycles = 0;
 uint16_t servoCyclesCounter = 0;
-
 
 //osThreadId_t userLedTaskHandler;
 const osThreadAttr_t ledTaskAttributes = {
@@ -47,7 +45,6 @@ const osThreadAttr_t servoEnableTaskAttributes = {
 .priority = (osPriority_t) osPriorityLow,
 };
 
-
 void configureOutputPin(GPIO_TypeDef *Port, uint16_t Pin) {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
@@ -63,7 +60,6 @@ void configureOutputPin(GPIO_TypeDef *Port, uint16_t Pin) {
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(Port, &GPIO_InitStruct);
 }
-
 
 void RampsStart(rampsHandler_t *rampsData) {
   rampsData->shared.servo.maxSpeed = 720;
@@ -86,7 +82,6 @@ void RampsStart(rampsHandler_t *rampsData) {
   osThreadNew(userLedTask, rampsData, &ledTaskAttributes);
   osThreadNew(updateSpeedTask, rampsData, &speedTaskAttributes);
   osThreadNew(servoEnableTask, rampsData, &servoEnableTaskAttributes);
-
 
   // Initialize and start encoder timer, reset the sync flags
   for (int j = 0; j < SCALES_COUNT; ++j) {
