@@ -202,7 +202,9 @@ static void cmdSet(int argc, char **argv) {
 }
 static void cmdSta(int argc, char **argv) {
   (void)argc; (void)argv;
-  static const char *kStaVars[] = { "scales.pos", "scales.speed", "servo.pos", "servo.speed" };
+  static const char *kStaVars[] = {
+    "scales.pos", "scales.speed", "servo.pos", "servo.speed", "servo.tgt", "servo.mode"
+  };
   for (unsigned i = 0; i < sizeof(kStaVars) / sizeof(kStaVars[0]); i++) {
     const var_entry_t *v = findVar(kStaVars[i]);
     if (v) emitVar(v);
@@ -261,7 +263,7 @@ static void cmdRollback(int argc, char **argv) {
 }
 
 static const cmd_t kCommands[] = {
-  { "sta",      cmdSta,      "fast read: scale positions + speeds" },
+  { "sta",      cmdSta,      "fast read: scale pos/speed + servo pos/speed/tgt/mode" },
   { "set",      cmdSet,      "set <name> [idx] <value>" },
   { "get",      cmdGet,      "get <name>" },
   { "settings", cmdSettings, "dump all variables" },

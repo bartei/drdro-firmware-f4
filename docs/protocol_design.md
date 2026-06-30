@@ -26,7 +26,7 @@ line protocol over RS485, and later add firmware update over the same bus.
 ### A.2 Commands (initial set)
 | Command | Args | Action | Response |
 |---|---|---|---|
-| `sta` | — | Fast read: scale positions + speeds (tight poll loop). | `scales.pos=…` + `scales.speed=…` + empty line |
+| `sta` | — | Fast read: scale pos/speed + servo pos/speed/tgt/mode (tight poll loop). | `scales.pos=…` + `scales.speed=…` + `servo.pos=…` + `servo.speed=…` + `servo.tgt=…` + `servo.mode=…` + empty line |
 | `set` | `<name> [idx] <value>` | Set a variable (idx required for arrays). | empty line (or `error=…`) |
 | `get` | `<name>` | Read a whole variable. | `<name>=<v[,v…]>` + empty line |
 | `settings` | — | Dump every configured variable. | all `key=value` lines + empty line |
@@ -93,7 +93,10 @@ typedef struct {
 | `diag.cycles` | u32 | 1 | RO | `fastData.cycles` |
 | `diag.interval` | u32 | 1 | RO | `fastData.executionInterval` |
 
-`sta` = `scales.pos` + `scales.speed` (same keys/source as `get`).
+`sta` = `scales.pos` + `scales.speed` + `servo.pos` + `servo.speed` + `servo.tgt` +
+`servo.mode` (same keys/source as `get`). The servo fields let the host poll loop detect
+move completion (`servo.tgt == 0`) and track enable/mode in a single round-trip — added
+2026-06-29 for the drDRO-software (RCP) port.
 
 ### A.5 Concurrency (CONFIRMED approach)
 TIM9 ISR touches `shared` at high rate while `set` writes from the command task.

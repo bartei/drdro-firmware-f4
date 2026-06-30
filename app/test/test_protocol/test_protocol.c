@@ -91,11 +91,14 @@ static void test_sta(void) {
   shared.scales[0].position = 10; shared.scales[1].position = 20;
   shared.scales[0].speed = 5;
   shared.servo.currentSteps = 1234; shared.servo.currentSpeed = 7.5f;
+  shared.servo.stepsToGo = -42; shared.fastData.servoMode = 2;
   run("sta");
   TEST_ASSERT_NOT_NULL(strstr(cap, "scales.pos=10,20,0,0"));
   TEST_ASSERT_NOT_NULL(strstr(cap, "scales.speed=5,0,0,0"));
   TEST_ASSERT_NOT_NULL(strstr(cap, "servo.pos=1234"));
   TEST_ASSERT_NOT_NULL(strstr(cap, "servo.speed=7.5"));
+  TEST_ASSERT_NOT_NULL(strstr(cap, "servo.tgt=-42"));
+  TEST_ASSERT_NOT_NULL(strstr(cap, "servo.mode=2"));
 }
 
 static void test_settings_dumps_all(void) {
