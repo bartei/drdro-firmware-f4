@@ -83,6 +83,7 @@ typedef struct {
   float currentSpeed;
   float jogSpeed;
   float acceleration;
+  float indexSpeed;     /* feedrate cap for indexing/offset moves; 0 = use maxSpeed */
   int32_t stepsToGo;
   uint32_t destinationSteps;
   uint32_t currentSteps;

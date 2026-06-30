@@ -118,6 +118,7 @@ static const var_entry_t kVars[] = {
   { "servo.max",     OFF(servo.maxSpeed),             VT_F32, 1, 0, 0    },
   { "servo.acc",     OFF(servo.acceleration),         VT_F32, 1, 0, 0    },
   { "servo.jog",     OFF(servo.jogSpeed),             VT_F32, 1, 0, 0    },
+  { "servo.idx",     OFF(servo.indexSpeed),           VT_F32, 1, 0, 0    },
   { "servo.mode",    OFF(fastData.servoMode),         VT_U16, 1, 0, 0    },
   { "servo.pos",     OFF(servo.currentSteps),         VT_U32, 1, 0, V_RO },
   { "servo.speed",   OFF(servo.currentSpeed),         VT_F32, 1, 0, V_RO },

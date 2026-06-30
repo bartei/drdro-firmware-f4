@@ -87,6 +87,7 @@ typedef struct {
 | `servo.max` | f32 | 1 | RW | `servo.maxSpeed` |
 | `servo.acc` | f32 | 1 | RW | `servo.acceleration` |
 | `servo.jog` | f32 | 1 | RW | `servo.jogSpeed` |
+| `servo.idx` | f32 | 1 | RW | `servo.indexSpeed` (indexing/offset feedrate cap; 0 = use `servo.max`) |
 | `servo.mode` | u16 | 1 | RW | `fastData.servoMode` (0=off,1=sync/index,2=jog) |
 | `servo.pos` | u32 | 1 | RO | `servo.currentSteps` |
 | `servo.tgt` | i32 | 1 | RW | `servo.stepsToGo` (write = start indexed move) |

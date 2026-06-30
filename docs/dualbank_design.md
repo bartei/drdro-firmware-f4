@@ -86,18 +86,26 @@ whose active bank is empty still runs a valid Exec instead of dropping to the CL
 ## Settings (shared/Settings.h — read by both, written by both)
 ```c
 typedef struct {
+  uint32_t crc;            // offset 0 — FROZEN. CRC32 over bytes [4 .. used_size)
   uint32_t magic;          // SETTINGS_MAGIC
-  uint16_t version;        // schema version
-  uint16_t boot_mode;      // 0=app, 1=bootloader
+  uint16_t version;        // schema version (informational; validity is length-based)
+  uint16_t used_size;      // writer's sizeof(settings_t) — the CRC length
+  /* --- fixed core --- */
+  uint32_t seq;            // ping-pong write counter
   uint8_t  active_bank;    // 0|1 — which stored bank should run
   uint8_t  loaded_bank;    // 0|1|0xFF — which bank is currently copied into Exec
-  uint16_t _pad;
-  uint32_t bank_crc[2];    // CRC32 of each bank image (0 = unknown)  [D2+]
-  /* --- app payload (D2): scales ratios, servo cfg, ... --- */
-  uint32_t crc;            // CRC32 of all preceding bytes
+  uint16_t boot_mode;      // 0=app, 1=bootloader
+  uint32_t bank_crc[2];    // CRC32 of each bank image (0 = unknown)
+  /* --- app payload: APPEND NEW FIELDS AT THE END ONLY (scales, servo cfg, …) --- */
 } settings_t;
 ```
-Both sides read-modify-write the whole struct so the other's fields are preserved.
+Forward-compatible by design: `crc` is field 0 at a frozen offset, `used_size` makes
+validation length-based (a binary can verify an image written by a *different* version
+straight out of flash), and fields are append-only. So a newer firmware can add variables
+without breaking an older binary's ability to validate/update the image (e.g. the
+separately-flashed bootloader) or mangling already-stored settings; a reader defaults any
+appended field the stored image is too short to contain. Both sides still read-modify-write
+the whole struct so the other's fields are preserved.
 
 ## Bootloader CLI command set (D3 sketch)
 `version` · `help` · `bank.info` (banks, sizes, validity, loaded/active) · `boot.mode <app|bl>`

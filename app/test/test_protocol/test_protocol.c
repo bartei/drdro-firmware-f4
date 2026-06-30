@@ -74,6 +74,13 @@ static void test_set_float_scalar(void) {
   TEST_ASSERT_EQUAL_FLOAT(1000.0f, shared.servo.maxSpeed);
 }
 
+static void test_set_get_index_speed(void) {
+  run("set servo.idx 200");
+  TEST_ASSERT_EQUAL_FLOAT(200.0f, shared.servo.indexSpeed);
+  run("get servo.idx");
+  TEST_ASSERT_NOT_NULL(strstr(cap, "servo.idx=200"));
+}
+
 static void test_set_array_element(void) {
   run("set scales.num 2 7");
   TEST_ASSERT_EQUAL_INT32(7, shared.scales[2].syncRatioNum);
@@ -220,13 +227,54 @@ static void test_settings_crc32_vector(void) {
 static void test_settings_seal_validate(void) {
   settings_t s; settings_defaults(&s);
   TEST_ASSERT_TRUE(settings_valid(&s));
-  ((uint8_t *)&s)[8] ^= 0xFF;                 /* corrupt a payload byte */
+  ((uint8_t *)&s)[12] ^= 0xFF;                /* corrupt a byte inside the CRC-covered range */
   TEST_ASSERT_FALSE(settings_valid(&s));
+}
+static void test_settings_crc_is_first_field(void) {
+  /* The forward-compat contract: crc at offset 0, then magic/version/used_size. */
+  TEST_ASSERT_EQUAL_UINT(0, offsetof(settings_t, crc));
+  TEST_ASSERT_EQUAL_UINT(4, offsetof(settings_t, magic));
+  TEST_ASSERT_EQUAL_UINT(10, offsetof(settings_t, used_size));
+}
+static void test_settings_forward_compat_shorter_image(void) {
+  /* Image written by an OLDER firmware predating servo_index: used_size stops before it
+   * and the CRC covers only that prefix. We must still validate, preserve known fields,
+   * and DEFAULT the appended field (never read the stale tail). */
+  settings_t older, out;
+  settings_defaults(&older);
+  older.servo_max   = 999.0f;
+  older.servo_index = 12345.0f;               /* garbage in the not-yet-existing tail */
+  older.used_size   = (uint16_t)offsetof(settings_t, servo_index);
+  older.crc = settings_crc32((const uint8_t *)&older + 4U, (uint32_t)older.used_size - 4U);
+
+  TEST_ASSERT_TRUE(settings_valid(&older));
+  settings_load_one(&older, &out);
+  TEST_ASSERT_EQUAL_FLOAT(999.0f, out.servo_max);    /* known field preserved */
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, out.servo_index);    /* appended field defaulted, not garbage */
+  TEST_ASSERT_EQUAL_UINT16(sizeof(settings_t), out.used_size);
+}
+static void test_settings_forward_compat_longer_image(void) {
+  /* Image from a NEWER firmware with extra trailing bytes our struct doesn't know: still
+   * validate (length-based CRC over the stored bytes) and read our known fields. */
+  uint8_t buf[sizeof(settings_t) + 8];
+  settings_t *newer = (settings_t *)buf;
+  settings_defaults(newer);
+  newer->servo_index = 42.0f;
+  for (unsigned i = 0; i < 8; i++) buf[sizeof(settings_t) + i] = (uint8_t)(0xA0 + i);
+  newer->used_size = (uint16_t)(sizeof(settings_t) + 8U);
+  newer->crc = settings_crc32(buf + 4U, (uint32_t)newer->used_size - 4U);
+
+  TEST_ASSERT_TRUE(settings_valid(newer));
+  settings_t out;
+  settings_load_one(newer, &out);
+  TEST_ASSERT_EQUAL_FLOAT(42.0f, out.servo_index);   /* known field read; unknown tail ignored */
+  TEST_ASSERT_EQUAL_UINT16(sizeof(settings_t), out.used_size);
 }
 static void test_settings_defaults(void) {
   settings_t s; settings_defaults(&s);
   TEST_ASSERT_EQUAL_INT32(100, s.scale_den[0]);
   TEST_ASSERT_EQUAL_FLOAT(720.0f, s.servo_max);
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, s.servo_index);
   TEST_ASSERT_EQUAL_UINT8(0xFF, s.loaded_bank);
   TEST_ASSERT_EQUAL_UINT32(0, s.seq);
 }
@@ -258,6 +306,7 @@ int main(void) {
   RUN_TEST(test_framing_ends_with_blank_line);
   RUN_TEST(test_get_float_scalar);
   RUN_TEST(test_set_float_scalar);
+  RUN_TEST(test_set_get_index_speed);
   RUN_TEST(test_set_array_element);
   RUN_TEST(test_get_array_grouped);
   RUN_TEST(test_sta);
@@ -282,6 +331,9 @@ int main(void) {
   RUN_TEST(test_rollback_acks);
   RUN_TEST(test_settings_crc32_vector);
   RUN_TEST(test_settings_seal_validate);
+  RUN_TEST(test_settings_crc_is_first_field);
+  RUN_TEST(test_settings_forward_compat_shorter_image);
+  RUN_TEST(test_settings_forward_compat_longer_image);
   RUN_TEST(test_settings_defaults);
   RUN_TEST(test_settings_pick_newest_seq);
   RUN_TEST(test_settings_pick_validity_fallback);

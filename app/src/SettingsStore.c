@@ -19,10 +19,11 @@ static void shared_to_settings(const rampsSharedData_t *sh, settings_t *s) {
     s->scale_den[i]  = sh->scales[i].syncRatioDen;
     s->scale_sync[i] = sh->scales[i].syncEnable;
   }
-  s->servo_max  = sh->servo.maxSpeed;
-  s->servo_acc  = sh->servo.acceleration;
-  s->servo_jog  = sh->servo.jogSpeed;
-  s->servo_mode = sh->fastData.servoMode;
+  s->servo_max   = sh->servo.maxSpeed;
+  s->servo_acc   = sh->servo.acceleration;
+  s->servo_jog   = sh->servo.jogSpeed;
+  s->servo_index = sh->servo.indexSpeed;
+  s->servo_mode  = sh->fastData.servoMode;
 }
 
 static void settings_to_shared(const settings_t *s, rampsSharedData_t *sh) {
@@ -34,6 +35,7 @@ static void settings_to_shared(const settings_t *s, rampsSharedData_t *sh) {
   sh->servo.maxSpeed     = s->servo_max;
   sh->servo.acceleration = s->servo_acc;
   sh->servo.jogSpeed     = s->servo_jog;
+  sh->servo.indexSpeed   = s->servo_index;
   sh->fastData.servoMode = s->servo_mode;
 }
 

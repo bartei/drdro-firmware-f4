@@ -64,6 +64,7 @@ void configureOutputPin(GPIO_TypeDef *Port, uint16_t Pin) {
 void RampsStart(rampsHandler_t *rampsData) {
   rampsData->shared.servo.maxSpeed = 720;
   rampsData->shared.servo.acceleration = 120;
+  rampsData->shared.servo.indexSpeed = 0;   // 0 → indexing ramps fall back to maxSpeed
 
   for (int i = 0; i < SCALES_COUNT; i++) {
     rampsData->shared.scales[i].syncRatioNum = 1;
@@ -114,13 +115,20 @@ static inline void updateIndexingPosition(rampsHandler_t *data) {
   float interval = (float) shared->executionInterval / 100000000.0f;
   float stopDistance = (shared->servo.currentSpeed * shared->servo.currentSpeed / shared->servo.acceleration) / 2;
 
+  /* Indexing/offset moves ramp to their own feedrate cap, NOT the mechanical maxSpeed.
+   * maxSpeed stays at the machine's true ceiling so the step-pulse cadence (servoCycles,
+   * sized from maxSpeed in updateSpeedTask) — and therefore a simultaneous sync follower —
+   * is never throttled by an indexing move. 0 / out-of-range falls back to maxSpeed. */
+  float cap = shared->servo.indexSpeed;
+  if (cap <= 0.0f || cap > shared->servo.maxSpeed) cap = shared->servo.maxSpeed;
+
   // Accelerate Pos
   if (shared->servo.stepsToGo > 0) {
-    if ((float)shared->servo.stepsToGo > stopDistance && shared->servo.currentSpeed < shared->servo.maxSpeed) {
+    if ((float)shared->servo.stepsToGo > stopDistance && shared->servo.currentSpeed < cap) {
       shared->servo.currentSpeed += shared->servo.acceleration * interval;
       // max speed
-      if (shared->servo.currentSpeed > shared->servo.maxSpeed) {
-        shared->servo.currentSpeed = shared->servo.maxSpeed;
+      if (shared->servo.currentSpeed > cap) {
+        shared->servo.currentSpeed = cap;
       }
     }
 
@@ -135,10 +143,10 @@ static inline void updateIndexingPosition(rampsHandler_t *data) {
 
   if (shared->servo.stepsToGo < 0) {
     // Accelerate Neg
-    if (-(float)shared->servo.stepsToGo > stopDistance && -shared->servo.currentSpeed < shared->servo.maxSpeed) {
+    if (-(float)shared->servo.stepsToGo > stopDistance && -shared->servo.currentSpeed < cap) {
       shared->servo.currentSpeed -= shared->servo.acceleration * interval;
-      if (-shared->servo.currentSpeed > shared->servo.maxSpeed) {
-        shared->servo.currentSpeed = -shared->servo.maxSpeed;
+      if (-shared->servo.currentSpeed > cap) {
+        shared->servo.currentSpeed = -cap;
       }
     }
 
