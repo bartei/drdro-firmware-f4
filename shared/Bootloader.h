@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Shared contract between the drDRO application and its IAP bootloader.
  * Design: protocol_design.md Part B + dualbank_design.md; plan: dualbank_todo.md.

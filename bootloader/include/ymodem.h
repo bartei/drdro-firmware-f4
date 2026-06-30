@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Minimal YMODEM receiver for the IAP bootloader — self-contained (no libs), polled
  * USART, CRC-16 mode only. Receives a single file and streams it to flash via flash.c.

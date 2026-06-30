@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Persistent settings — shared layout for the app and the IAP bootloader. Design:
  * dualbank_design.md (DC4). Both sides read it; both may write it (read-modify-write the

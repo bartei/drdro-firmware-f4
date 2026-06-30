@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * App-side persistent settings — see SettingsStore.h. Reads/writes the shared settings
  * image in flash sector 1 (../shared/Settings.h). The write erases + programs the whole

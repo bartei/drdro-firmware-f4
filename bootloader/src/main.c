@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * drDRO IAP bootloader (sector 0 @ 0x08000000). Design: protocol_design.md Part B +
  * dualbank_design.md; plan: dualbank_todo.md.

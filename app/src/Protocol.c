@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * drDRO line protocol (replaces Modbus). Command in (text, \r/\n/both terminated)
  * → key=value lines out, terminated by an empty line; errors carry `error=<reason>`.

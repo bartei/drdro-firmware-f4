@@ -157,4 +157,4 @@ the pick-up-where-you-left-off handoff.
 
 ## License
 
-MIT (see source headers). © Stefano Bertelli.
+GPL-3.0-or-later (see LICENSE). © Stefano Bertelli.

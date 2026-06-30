@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * App-side persistent settings (flash sector 1). Maps the shared settings image
  * (../shared/Settings.h) to/from the live register block, and exposes the boot-bank

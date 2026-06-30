@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Bootloader CLI — see bl_cli.h. Polled USART line reader + the same response framing
  * as the app (key=value\n …, crc=HH\n, blank line; optional `*HH` request checksum).

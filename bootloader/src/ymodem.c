@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Minimal YMODEM receiver — see ymodem.h. Implements the receiver half of the
  * classic YMODEM batch protocol in CRC-16 mode:

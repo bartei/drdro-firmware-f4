@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Flash programming — see flash.h. F411CE is single-bank, so a failed write can only
  * damage the targeted region (Exec or a bank); the bootloader in sector 0 stays intact.

@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * USR_LED (PB12) diagnostic blink codes, shared by the app and the bootloader. The LED
  * repeats a pattern of N short blinks followed by a ~0.7 s gap, ~once per second, so the

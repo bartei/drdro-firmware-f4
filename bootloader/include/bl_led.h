@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Bootloader USR_LED heartbeat (PB12). Implemented in main.c. bl_led_service() is a
  * non-blocking, SysTick-driven state machine: call it frequently from the CLI poll loop

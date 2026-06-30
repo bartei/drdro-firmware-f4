@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Boot helpers shared between bl main and the CLI (`boot` command). Implemented in
  * main.c. See dualbank_design.md §Boot logic.

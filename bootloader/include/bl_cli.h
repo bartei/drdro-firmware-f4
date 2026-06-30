@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Bootloader CLI — same wire format as the app's line protocol (key=value lines,
  * terminating empty line, `crc=HH`, optional `*HH` request checksum), but a

@@ -1,6 +1,6 @@
 /**
  * Copyright © 2026 <Stefano Bertelli>
- * MIT.
+ * GPL-3.0-or-later. See LICENSE.
  *
  * Flash programming for the IAP bootloader. Targets a single 128 KB region (Exec or a
  * bank) per "program session", plus the settings sector and a bank→Exec copy. Sector 0
