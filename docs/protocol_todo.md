@@ -44,5 +44,12 @@ doc (`bootloader_todo.md`), after this.
   swallowed the opening bytes). Verified clean, CRC-checked; `sta` round-trip ≈ 135 Hz.
 - Bench harness lives in the session scratchpad (`probe.py`/`bench.py`, pyserial @115200).
 
+## Post-ship amendments
+- [x] **`sta` extended** (2026-06-29): also emits `servo.tgt` + `servo.mode` so the drDRO-software
+      (RCP) host poll loop gets move-completion + enable/mode in a single round-trip. Native
+      `test_sta` updated (32/32 green); build green (flash 9.4 %). Design refs A.2/A.4 updated.
+      **HW-verified over RS485** (flashed via ST-Link, `/dev/ttyACM2` @115200): `version`/`sta`/
+      `get`/`settings`/checksummed `set` round-trips all CRC-correct; `sta` shows the new fields.
+
 ## Next — Firmware update over RS485 (bootloader)
 Tracked in **`bootloader_todo.md`** (design: `protocol_design.md` Part B). Protocol has shipped.
