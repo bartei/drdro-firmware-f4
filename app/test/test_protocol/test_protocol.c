@@ -80,12 +80,6 @@ static void test_set_get_index_speed(void) {
   run("get servo.idx");
   TEST_ASSERT_NOT_NULL(strstr(cap, "servo.idx=200"));
 }
-static void test_set_get_diag_test(void) {
-  run("set diag.test 3735928559");            /* 0xDEADBEEF */
-  TEST_ASSERT_EQUAL_UINT32(0xDEADBEEFU, shared.testValue);
-  run("get diag.test");
-  TEST_ASSERT_NOT_NULL(strstr(cap, "diag.test=3735928559"));
-}
 
 static void test_set_array_element(void) {
   run("set scales.num 2 7");
@@ -259,24 +253,6 @@ static void test_settings_forward_compat_shorter_image(void) {
   TEST_ASSERT_EQUAL_FLOAT(0.0f, out.servo_index);    /* appended field defaulted, not garbage */
   TEST_ASSERT_EQUAL_UINT16(sizeof(settings_t), out.used_size);
 }
-static void test_settings_forward_compat_v050_upgrade(void) {
-  /* THE update scenario: a v0.5.0 image has servo_index but predates test_value (appended
-   * after it). Upgrading to this firmware must preserve the saved fields and DEFAULT the
-   * newly-appended one — never boot with the stale tail. */
-  settings_t v050, out;
-  settings_defaults(&v050);
-  v050.servo_max   = 800.0f;
-  v050.servo_index = 150.0f;
-  v050.test_value  = 0x11111111U;             /* garbage in the not-yet-existing tail */
-  v050.used_size   = (uint16_t)offsetof(settings_t, test_value);
-  v050.crc = settings_crc32((const uint8_t *)&v050 + 4U, (uint32_t)v050.used_size - 4U);
-
-  TEST_ASSERT_TRUE(settings_valid(&v050));
-  settings_load_one(&v050, &out);
-  TEST_ASSERT_EQUAL_FLOAT(800.0f, out.servo_max);        /* preserved across the upgrade */
-  TEST_ASSERT_EQUAL_FLOAT(150.0f, out.servo_index);      /* preserved across the upgrade */
-  TEST_ASSERT_EQUAL_HEX32(0xABCD1234U, out.test_value);  /* appended field -> default sentinel */
-}
 static void test_settings_forward_compat_longer_image(void) {
   /* Image from a NEWER firmware with extra trailing bytes our struct doesn't know: still
    * validate (length-based CRC over the stored bytes) and read our known fields. */
@@ -299,7 +275,6 @@ static void test_settings_defaults(void) {
   TEST_ASSERT_EQUAL_INT32(100, s.scale_den[0]);
   TEST_ASSERT_EQUAL_FLOAT(720.0f, s.servo_max);
   TEST_ASSERT_EQUAL_FLOAT(0.0f, s.servo_index);
-  TEST_ASSERT_EQUAL_HEX32(0xABCD1234U, s.test_value);
   TEST_ASSERT_EQUAL_UINT8(0xFF, s.loaded_bank);
   TEST_ASSERT_EQUAL_UINT32(0, s.seq);
 }
@@ -332,7 +307,6 @@ int main(void) {
   RUN_TEST(test_get_float_scalar);
   RUN_TEST(test_set_float_scalar);
   RUN_TEST(test_set_get_index_speed);
-  RUN_TEST(test_set_get_diag_test);
   RUN_TEST(test_set_array_element);
   RUN_TEST(test_get_array_grouped);
   RUN_TEST(test_sta);
@@ -359,7 +333,6 @@ int main(void) {
   RUN_TEST(test_settings_seal_validate);
   RUN_TEST(test_settings_crc_is_first_field);
   RUN_TEST(test_settings_forward_compat_shorter_image);
-  RUN_TEST(test_settings_forward_compat_v050_upgrade);
   RUN_TEST(test_settings_forward_compat_longer_image);
   RUN_TEST(test_settings_defaults);
   RUN_TEST(test_settings_pick_newest_seq);

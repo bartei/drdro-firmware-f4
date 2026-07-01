@@ -125,7 +125,6 @@ static const var_entry_t kVars[] = {
   { "servo.tgt",     OFF(servo.stepsToGo),            VT_I32, 1, 0, 0    },
   { "diag.cycles",   OFF(fastData.cycles),            VT_U32, 1, 0, V_RO },
   { "diag.interval", OFF(fastData.executionInterval), VT_U32, 1, 0, V_RO },
-  { "diag.test",     OFF(testValue),                  VT_U32, 1, 0, 0    },
   { NULL, 0, 0, 0, 0, 0 },
 };
 

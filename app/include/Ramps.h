@@ -110,7 +110,6 @@ typedef struct {
   servo_t servo;
   input_t scales[SCALES_COUNT];
   fastData_t fastData;
-  uint32_t testValue;   /* scratch RW register (diag.test) — validates append-only settings */
 } rampsSharedData_t;
 
 typedef struct {

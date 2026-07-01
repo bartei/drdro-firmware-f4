@@ -28,7 +28,7 @@
 #include "Bootloader.h"   /* SETTINGS_BASE, SETTINGS_SECTOR, BANK_COUNT, boot_mode_t */
 
 #define SETTINGS_MAGIC    0x44524F31U   /* "DRO1" */
-#define SETTINGS_VERSION  4U            /* +test_value (appended; validates fwd-compat) */
+#define SETTINGS_VERSION  3U            /* crc-first/length-based/append-only layout; +servo_index */
 #define SETTINGS_SCALES   4U            /* must match the app's SCALES_COUNT */
 
 /* Two settings slots (ping-pong). A = sector 1, B = sector 2. */
@@ -75,7 +75,6 @@ typedef struct {
   uint16_t servo_mode;
   uint16_t reserved1;
   float    servo_index;                 /* v3: indexing/offset feedrate cap (0 = use servo_max) */
-  uint32_t test_value;                  /* v4: scratch (diag.test) — validates append-only fwd-compat */
 } settings_t;
 
 /* Smallest image we'll accept: must at least reach through the fixed core. Bounds the
@@ -127,7 +126,6 @@ static inline void settings_defaults(settings_t *s) {
   s->servo_jog = 0.0f;
   s->servo_index = 0.0f;                /* 0 → ramp falls back to servo_max (see Ramps.c) */
   s->servo_mode = 0;
-  s->test_value = 0xABCD1234U;          /* distinctive sentinel: unmistakable when defaulted */
   settings_seal(s);
 }
 
