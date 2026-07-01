@@ -24,6 +24,7 @@ static void shared_to_settings(const rampsSharedData_t *sh, settings_t *s) {
   s->servo_jog   = sh->servo.jogSpeed;
   s->servo_index = sh->servo.indexSpeed;
   s->servo_mode  = sh->fastData.servoMode;
+  s->test_value  = sh->testValue;
 }
 
 static void settings_to_shared(const settings_t *s, rampsSharedData_t *sh) {
@@ -37,6 +38,7 @@ static void settings_to_shared(const settings_t *s, rampsSharedData_t *sh) {
   sh->servo.jogSpeed     = s->servo_jog;
   sh->servo.indexSpeed   = s->servo_index;
   sh->fastData.servoMode = s->servo_mode;
+  sh->testValue          = s->test_value;
 }
 
 /* Erase one settings slot's sector and program the struct there (word-verified). */
