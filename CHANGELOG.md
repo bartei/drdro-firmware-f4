@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.6.0 (2026-07-02)
+
+### Continuous Integration
+
+- Semantic-release — dev betas, main stables, changelog + release notes
+  ([`4fa25cc`](https://github.com/bartei/drdro-firmware-f4/commit/4fa25cc6a00c5bb4872e3c7acf7befd9e4ab0a88))
+
+### Features
+
+- **scales**: Per-scale encoder input filter (scales.filt, TIM ICxF 0-15)
+  ([`5548d8c`](https://github.com/bartei/drdro-firmware-f4/commit/5548d8c39176a2e619f6d5db6e651fdbe9a8c0d9))
+
+
 ## v0.5.2 (2026-07-01)
 
 ### Testing
