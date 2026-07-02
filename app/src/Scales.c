@@ -3,10 +3,12 @@
 //
 #include "Scales.h"
 
-HAL_StatusTypeDef initScaleTimer(TIM_HandleTypeDef * timHandle)
+HAL_StatusTypeDef initScaleTimer(TIM_HandleTypeDef * timHandle, uint16_t filter)
 {
   TIM_Encoder_InitTypeDef sConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  if (filter > SCALES_FILTER_MAX) filter = SCALES_FILTER_MAX;
 
   timHandle->Init.Prescaler = 0;
   timHandle->Init.CounterMode = TIM_COUNTERMODE_UP;
@@ -18,11 +20,11 @@ HAL_StatusTypeDef initScaleTimer(TIM_HandleTypeDef * timHandle)
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 0;
+  sConfig.IC1Filter = filter;
   sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 0;
+  sConfig.IC2Filter = filter;
 
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_ENABLE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
@@ -37,4 +39,15 @@ HAL_StatusTypeDef initScaleTimer(TIM_HandleTypeDef * timHandle)
 
   result = HAL_TIMEx_MasterConfigSynchronization(timHandle, &sMasterConfig);
   return result;
+}
+
+/* Rewrite the ICxF bits of both encoder channels in place — no re-init, so the
+ * counter keeps running and no counts are lost. */
+void setScaleFilter(TIM_HandleTypeDef * timHandle, uint16_t filter)
+{
+  if (filter > SCALES_FILTER_MAX) filter = SCALES_FILTER_MAX;
+  MODIFY_REG(timHandle->Instance->CCMR1,
+             TIM_CCMR1_IC1F | TIM_CCMR1_IC2F,
+             ((uint32_t)filter << TIM_CCMR1_IC1F_Pos) |
+             ((uint32_t)filter << TIM_CCMR1_IC2F_Pos));
 }

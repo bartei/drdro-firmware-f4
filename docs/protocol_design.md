@@ -84,6 +84,7 @@ typedef struct {
 | `scales.num` | i32 | 4 | RW | `scales[N].syncRatioNum` |
 | `scales.den` | i32 | 4 | RW | `scales[N].syncRatioDen` |
 | `scales.sync` | bool | 4 | RW | `scales[N].syncEnable` |
+| `scales.filt` | u16 | 4 | RW | `scales[N].filterValue` (encoder input filter, 0–15 = TIM ICxF; write reprograms the timer live; persisted as `scale_filter[N]`, default 5) |
 | `servo.max` | f32 | 1 | RW | `servo.maxSpeed` |
 | `servo.acc` | f32 | 1 | RW | `servo.acceleration` |
 | `servo.jog` | f32 | 1 | RW | `servo.jogSpeed` |

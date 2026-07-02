@@ -19,6 +19,10 @@ int     SettingsBankSet(uint8_t bank)            { (void)bank; return 0; }
 uint8_t SettingsActiveBank(void)                 { return 0; }
 void    EnterBootloader(void)                    { }   /* HW jump; stubbed for host tests */
 
+/* ---- Scales stub (encoder filter reprogram; captured for assertions) ----- */
+static TIM_HandleTypeDef *filtHandle; static uint16_t filtValue; static int filtCalls;
+void setScaleFilter(TIM_HandleTypeDef *t, uint16_t f) { filtHandle = t; filtValue = f; filtCalls++; }
+
 /* ---- TX capture (called by the mock HAL_UART_Transmit) ------------------- */
 static char   cap[1024];
 static size_t capLen;
@@ -31,7 +35,8 @@ static void capReset(void) { capLen = 0; cap[0] = 0; }
 static rampsSharedData_t shared;
 static UART_HandleTypeDef huart;
 
-void setUp(void)    { memset(&shared, 0, sizeof(shared)); ProtocolStart(&huart, &shared); capReset(); }
+void setUp(void)    { memset(&shared, 0, sizeof(shared)); ProtocolStart(&huart, &shared); capReset();
+                      filtHandle = NULL; filtValue = 0; filtCalls = 0; }
 void tearDown(void) {}
 
 /* run a (mutable) command line through the parser */
@@ -139,6 +144,36 @@ static void test_error_bad_index(void) {
 static void test_error_out_of_range_u16(void) {
   run("set servo.mode 99999");
   TEST_ASSERT_NOT_NULL(strstr(cap, "error=value out of range"));
+}
+
+/* ---- encoder input filter (scales.filt) ----------------------------------- */
+static void test_set_filter_applies_live(void) {
+  static TIM_HandleTypeDef tim2;
+  shared.scales[1].timerHandle = &tim2;
+  run("set scales.filt 1 9");
+  TEST_ASSERT_NULL(strstr(cap, "error="));
+  TEST_ASSERT_EQUAL_UINT16(9, shared.scales[1].filterValue);
+  TEST_ASSERT_EQUAL_INT(1, filtCalls);                  /* reprogrammed the hardware... */
+  TEST_ASSERT_EQUAL_PTR(&tim2, filtHandle);             /* ...on the right timer         */
+  TEST_ASSERT_EQUAL_UINT16(9, filtValue);
+}
+
+static void test_filter_out_of_range_rejected(void) {
+  run("set scales.filt 0 16");                          /* ICxF is 4-bit: 0..15 */
+  TEST_ASSERT_NOT_NULL(strstr(cap, "error=value out of range"));
+  TEST_ASSERT_EQUAL_UINT16(0, shared.scales[0].filterValue);
+  TEST_ASSERT_EQUAL_INT(0, filtCalls);
+}
+
+static void test_filter_get_grouped(void) {
+  for (int i = 0; i < SCALES_COUNT; i++) shared.scales[i].filterValue = (uint16_t)(i + 2);
+  run("get scales.filt");
+  TEST_ASSERT_NOT_NULL(strstr(cap, "scales.filt=2,3,4,5"));
+}
+
+static void test_load_reapplies_filters(void) {
+  run("load");
+  TEST_ASSERT_EQUAL_INT(SCALES_COUNT, filtCalls);       /* one reprogram per scale */
 }
 
 static void test_checksum_valid_accepted(void) {
@@ -277,6 +312,22 @@ static void test_settings_defaults(void) {
   TEST_ASSERT_EQUAL_FLOAT(0.0f, s.servo_index);
   TEST_ASSERT_EQUAL_UINT8(0xFF, s.loaded_bank);
   TEST_ASSERT_EQUAL_UINT32(0, s.seq);
+  for (unsigned i = 0; i < SETTINGS_SCALES; i++)
+    TEST_ASSERT_EQUAL_UINT16(5, s.scale_filter[i]);
+}
+static void test_settings_forward_compat_pre_filter_image(void) {
+  /* Image written by a v3 firmware predating scale_filter: the appended array must
+   * come back as the default (5), not whatever the stale tail bytes contain. */
+  settings_t older, out;
+  settings_defaults(&older);
+  for (unsigned i = 0; i < SETTINGS_SCALES; i++) older.scale_filter[i] = 0xEEEE;
+  older.used_size = (uint16_t)offsetof(settings_t, scale_filter);
+  older.crc = settings_crc32((const uint8_t *)&older + 4U, (uint32_t)older.used_size - 4U);
+
+  TEST_ASSERT_TRUE(settings_valid(&older));
+  settings_load_one(&older, &out);
+  for (unsigned i = 0; i < SETTINGS_SCALES; i++)
+    TEST_ASSERT_EQUAL_UINT16(5, out.scale_filter[i]);
 }
 static void test_settings_pick_newest_seq(void) {
   settings_t a, b, out;
@@ -316,6 +367,10 @@ int main(void) {
   RUN_TEST(test_error_readonly);
   RUN_TEST(test_error_bad_index);
   RUN_TEST(test_error_out_of_range_u16);
+  RUN_TEST(test_set_filter_applies_live);
+  RUN_TEST(test_filter_out_of_range_rejected);
+  RUN_TEST(test_filter_get_grouped);
+  RUN_TEST(test_load_reapplies_filters);
   RUN_TEST(test_checksum_valid_accepted);
   RUN_TEST(test_checksum_invalid_rejected);
   RUN_TEST(test_checksum_bad_hex_rejected);
@@ -335,6 +390,7 @@ int main(void) {
   RUN_TEST(test_settings_forward_compat_shorter_image);
   RUN_TEST(test_settings_forward_compat_longer_image);
   RUN_TEST(test_settings_defaults);
+  RUN_TEST(test_settings_forward_compat_pre_filter_image);
   RUN_TEST(test_settings_pick_newest_seq);
   RUN_TEST(test_settings_pick_validity_fallback);
   return UNITY_END();

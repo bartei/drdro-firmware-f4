@@ -67,6 +67,11 @@ Protocol details/grammar: `protocol_design.md`. Variable names: §A.4 there.
   switchover. Modbus is gone.
 - **CubeMX boilerplate stripped** (~830 lines): USER CODE markers, ST `@attention`
   banners, dashed section dividers, and the redundant `defaultTask`/`freertos.c`.
+- **Encoder input filter (2026-07-02):** per-scale TIM ICxF filter (0–15, default 5) —
+  `scale_filter[4]` appended to `settings_t` (v4, append-only → OTA-safe), `scales.filt`
+  protocol var (write reprograms CCMR1 live via `setScaleFilter()`, `load` reapplies),
+  boot applies the persisted value after `SettingsApply`. Native tests cover set/clamp/
+  reapply + pre-v4-image forward-compat (41 green).
 
 ## Status — what's next
 1. **Phase 5 — hardware verification** (`protocol_todo.md`): exercise every command over

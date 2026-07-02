@@ -28,7 +28,7 @@
 #include "Bootloader.h"   /* SETTINGS_BASE, SETTINGS_SECTOR, BANK_COUNT, boot_mode_t */
 
 #define SETTINGS_MAGIC    0x44524F31U   /* "DRO1" */
-#define SETTINGS_VERSION  3U            /* crc-first/length-based/append-only layout; +servo_index */
+#define SETTINGS_VERSION  4U            /* crc-first/length-based/append-only layout; +scale_filter */
 #define SETTINGS_SCALES   4U            /* must match the app's SCALES_COUNT */
 
 /* Two settings slots (ping-pong). A = sector 1, B = sector 2. */
@@ -75,6 +75,7 @@ typedef struct {
   uint16_t servo_mode;
   uint16_t reserved1;
   float    servo_index;                 /* v3: indexing/offset feedrate cap (0 = use servo_max) */
+  uint16_t scale_filter[SETTINGS_SCALES]; /* v4: encoder input-capture filter, 0..15 (TIM ICxF) */
 } settings_t;
 
 /* Smallest image we'll accept: must at least reach through the fixed core. Bounds the
@@ -120,6 +121,7 @@ static inline void settings_defaults(settings_t *s) {
     s->scale_num[i] = 1;
     s->scale_den[i] = 100;
     s->scale_sync[i] = 0;
+    s->scale_filter[i] = 5;             /* ICxF 5 = f_DTS/2, N=8 → rejects pulses < 160 ns @ 100 MHz */
   }
   s->servo_max = 720.0f;
   s->servo_acc = 120.0f;

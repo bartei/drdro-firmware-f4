@@ -106,6 +106,7 @@ typedef struct {
   uint8_t     count;    /* 1 = scalar, N = array */
   uint16_t    stride;   /* bytes between array elements */
   uint8_t     flags;    /* V_RO */
+  uint32_t    umax;     /* write bound for unsigned types (0 = no bound) */
 } var_entry_t;
 
 #define OFF(f) offsetof(rampsSharedData_t, f)
@@ -115,6 +116,7 @@ static const var_entry_t kVars[] = {
   { "scales.num",    OFF(scales[0].syncRatioNum),     VT_I32, 4, sizeof(input_t), 0    },
   { "scales.den",    OFF(scales[0].syncRatioDen),     VT_I32, 4, sizeof(input_t), 0    },
   { "scales.sync",   OFF(scales[0].syncEnable),       VT_U16, 4, sizeof(input_t), 0    },
+  { "scales.filt",   OFF(scales[0].filterValue),      VT_U16, 4, sizeof(input_t), 0, SCALES_FILTER_MAX },
   { "servo.max",     OFF(servo.maxSpeed),             VT_F32, 1, 0, 0    },
   { "servo.acc",     OFF(servo.acceleration),         VT_F32, 1, 0, 0    },
   { "servo.jog",     OFF(servo.jogSpeed),             VT_F32, 1, 0, 0    },
@@ -152,8 +154,8 @@ static int writeField(const var_entry_t *v, int idx, const char *s) {
   char *end = NULL;
   switch (v->type) {
     case VT_I32: { long  x = strtol(s, &end, 0);  if (*end) return -1; *(int32_t  *)p = (int32_t)x;  break; }
-    case VT_U32: { unsigned long x = strtoul(s, &end, 0); if (*end) return -1; *(uint32_t *)p = (uint32_t)x; break; }
-    case VT_U16: { unsigned long x = strtoul(s, &end, 0); if (*end || x > 0xFFFF) return -1; *(uint16_t *)p = (uint16_t)x; break; }
+    case VT_U32: { unsigned long x = strtoul(s, &end, 0); if (*end || (v->umax && x > v->umax)) return -1; *(uint32_t *)p = (uint32_t)x; break; }
+    case VT_U16: { unsigned long x = strtoul(s, &end, 0); if (*end || x > 0xFFFF || (v->umax && x > v->umax)) return -1; *(uint16_t *)p = (uint16_t)x; break; }
     case VT_F32: { float x = strtof(s, &end);     if (*end) return -1; *(float    *)p = x;           break; }
   }
   return 0;
@@ -199,6 +201,9 @@ static void cmdSet(int argc, char **argv) {
     valStr = argv[2];
   }
   if (writeField(v, idx, valStr) != 0) { respError("value out of range"); return; }
+  /* the encoder filter is live hardware state, not just a variable — reprogram it */
+  if (strcmp(v->name, "scales.filt") == 0)
+    setScaleFilter(sShared->scales[idx].timerHandle, sShared->scales[idx].filterValue);
   /* success: no body line; respEnd() emits crc + empty line */
 }
 static void cmdSta(int argc, char **argv) {
@@ -238,7 +243,10 @@ static void cmdSave(int argc, char **argv) {
 }
 static void cmdLoad(int argc, char **argv) {
   (void)argc; (void)argv;
-  respKV("load", SettingsLoad(sShared) ? "ok" : "default");
+  int ok = SettingsLoad(sShared);
+  for (int i = 0; i < SCALES_COUNT; i++)   /* reloaded filters are hardware state — reapply */
+    setScaleFilter(sShared->scales[i].timerHandle, sShared->scales[i].filterValue);
+  respKV("load", ok ? "ok" : "default");
 }
 static void cmdBank(int argc, char **argv) {
   char buf[4];

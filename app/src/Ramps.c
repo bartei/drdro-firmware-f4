@@ -69,6 +69,7 @@ void RampsStart(rampsHandler_t *rampsData) {
   for (int i = 0; i < SCALES_COUNT; i++) {
     rampsData->shared.scales[i].syncRatioNum = 1;
     rampsData->shared.scales[i].syncRatioDen = 100;
+    rampsData->shared.scales[i].filterValue = 5;   // matches settings_defaults()
   }
 
   // Configure Pins
@@ -86,7 +87,7 @@ void RampsStart(rampsHandler_t *rampsData) {
 
   // Initialize and start encoder timer, reset the sync flags
   for (int j = 0; j < SCALES_COUNT; ++j) {
-    initScaleTimer(rampsData->shared.scales[j].timerHandle);
+    initScaleTimer(rampsData->shared.scales[j].timerHandle, rampsData->shared.scales[j].filterValue);
     HAL_TIM_Encoder_Start(rampsData->shared.scales[j].timerHandle, TIM_CHANNEL_ALL);
   }
 

@@ -84,6 +84,11 @@ int main(void)
    * if a valid image is present in flash. Before the scheduler starts. */
   SettingsApply(&RampsData.shared);
 
+  /* The encoder timers were started by RampsStart with the compiled-in filter;
+   * reprogram them with the persisted per-scale value. */
+  for (int i = 0; i < SCALES_COUNT; i++)
+    setScaleFilter(RampsData.shared.scales[i].timerHandle, RampsData.shared.scales[i].filterValue);
+
   /* Init and start the scheduler (tasks were created in RampsStart) */
   osKernelInitialize();
   osKernelStart();

@@ -76,6 +76,7 @@ typedef struct {
   int32_t speed;
   int32_t syncRatioNum, syncRatioDen;
   uint16_t syncEnable;
+  uint16_t filterValue;   /* encoder input-capture filter, 0..SCALES_FILTER_MAX */
 } input_t;
 
 typedef struct {
