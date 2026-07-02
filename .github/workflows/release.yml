@@ -1,27 +1,32 @@
 name: Release
 
+# Semantic release (same tooling as drdro-arch / drdro-software-f4: python-semantic-release).
+# push to dev  -> next version as a BETA prerelease (vX.Y.Z-beta.N, GitHub prerelease)
+# push to main -> OFFICIAL stable release (vX.Y.Z)
+# The firmware is built INSIDE `semantic-release version` (build_command in pyproject.toml) so
+# the binaries embed the exact released version (FW_VERSION -> app/support/fw_version.py).
+# Release notes fold beta changes into the stable release (templates/.release_notes.md.j2).
+
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 permissions:
-  contents: write              # create tags and releases
+  contents: write              # push the changelog commit, create tags and releases
+
+concurrency: release
 
 jobs:
   release:
+    name: semantic-release (version + firmware + changelog)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Don't run on the changelog commit semantic-release pushes back.
+    if: "!contains(github.event.head_commit.message, 'chore(release):')"
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Compute semantic version
-        id: version
-        uses: PaulHatch/semantic-version@v5.4.0
-        with:
-          major_pattern: "major:"
-          minor_pattern: "feat:"
+          fetch-depth: 0        # semantic-release needs full history + tags
 
       - uses: actions/setup-python@v5
         with:
@@ -36,54 +41,35 @@ jobs:
           key: pio-${{ runner.os }}-${{ hashFiles('app/platformio.ini', 'bootloader/platformio.ini') }}
           restore-keys: pio-${{ runner.os }}-
 
-      - name: Install PlatformIO
-        run: pip install --upgrade platformio
+      - name: Install PlatformIO + semantic-release
+        run: |
+          pip install --upgrade platformio
+          pipx install python-semantic-release
 
-      - name: Build application (version embedded)
+      - name: Semantic release (version -> build firmware -> tag -> publish + assets)
         env:
-          FW_VERSION: "v${{ steps.version.outputs.version }}"   # app/support/fw_version.py picks this up
-        run: pio run -d app
-
-      - name: Build bootloader
-        run: pio run -d bootloader
-
-      - name: Build combined factory image (bootloader + app @ Exec)
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python tools/make_factory.py factory.hex \
-            bootloader/.pio/build/bootloader/firmware.hex \
-            app/.pio/build/drdro_f411ce/firmware.hex
+          semantic-release version
+          semantic-release publish
 
-      - name: Stage release artifacts (distinct names — app/bootloader share 'firmware.*')
+      - name: Changelog report (job summary)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p dist
-          for ext in bin hex elf; do
-            cp app/.pio/build/drdro_f411ce/firmware.$ext        dist/drdro-app.$ext
-            cp bootloader/.pio/build/bootloader/firmware.$ext   dist/drdro-bootloader.$ext
-          done
-          cp factory.hex dist/drdro-factory.hex
-
-      - name: Tag the release
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ steps.version.outputs.version }}" -m "v${{ steps.version.outputs.version }}"
-
-      - name: Push tag
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          tags: true
-
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "v${{ steps.version.outputs.version }}"
-          generate_release_notes: true
-          files: |
-            dist/drdro-app.bin
-            dist/drdro-app.hex
-            dist/drdro-app.elf
-            dist/drdro-bootloader.bin
-            dist/drdro-bootloader.hex
-            dist/drdro-bootloader.elf
-            dist/drdro-factory.hex
+          if ls dist/drdro-app.bin >/dev/null 2>&1; then
+            TAG="$(git describe --tags --abbrev=0)"
+            {
+              echo "## Released ${TAG} (${GITHUB_REF_NAME})"
+              echo
+              gh release view "$TAG" --json body -q .body
+              echo
+              echo '### Assets'
+              echo '```'
+              ls -lh dist/
+              cat dist/SHA256SUMS.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No release for this push (no version bump)." >> "$GITHUB_STEP_SUMMARY"
+          fi

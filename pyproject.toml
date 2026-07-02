@@ -1,0 +1,33 @@
+# drdro-firmware-f4 is not a Python project — this file exists only to configure
+# python-semantic-release (the same release tooling as drdro-arch and drdro-software-f4; see
+# .github/workflows/release.yml). Versioning is tag-only: no source file carries the version,
+# the binaries embed it via FW_VERSION at build time (app/support/fw_version.py).
+#
+# push to dev  -> next version as a BETA prerelease (vX.Y.Z-beta.N, GitHub prerelease)
+# push to main -> OFFICIAL stable release (vX.Y.Z)
+
+[tool.semantic_release]
+# Stay on the 0.x scheme (continues from v0.5.2) — psr 10 defaults allow_zero_version to
+# false, which would silently jump the next release to v1.0.0. Flip this to false (or land a
+# breaking change) when the firmware is ready to graduate to 1.0.
+allow_zero_version = true
+hvcs = "github"
+tag_format = "v{version}"
+# Runs inside `semantic-release version` with NEW_VERSION exported: builds app + bootloader
+# with FW_VERSION baked in and stages the release assets into dist/ for `semantic-release
+# publish`. Asset names (drdro-app.bin, ...) are the contract with the drdro-software-f4
+# firmware updater — do not rename them.
+build_command = "tools/build-release.sh"
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.branches.dev]
+match = "dev"
+prerelease = true
+prerelease_token = "beta"
+
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/*"]
+upload_to_vcs_release = true

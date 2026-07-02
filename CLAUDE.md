@@ -27,7 +27,10 @@ STM32CubeIDE project `../rotary-controller-f4` (branch `main`, v2.0.1) to Platfo
 - Clean:  `pio run -d app -t clean`   (**linker-script-only changes need a clean rebuild to relink**)
 - Artifacts: `app/.pio/build/drdro_f411ce/firmware.{elf,bin,hex}`,
   `bootloader/.pio/build/bootloader/firmware.{elf,bin,hex}`
-- CI: `.github/workflows/ci.yml` (builds both + native tests) and `release.yml` (semver tag + release on `main`).
+- CI: `.github/workflows/ci.yml` (builds both + native tests) and `release.yml`
+  (python-semantic-release: `dev` → `vX.Y.Z-beta.N` GitHub prereleases, `main` → stable;
+  config in `pyproject.toml`, assets staged by `tools/build-release.sh`, changelog in
+  `CHANGELOG.md` + release notes via `templates/.release_notes.md.j2`).
 
 ## Architecture
 - MCU STM32F411CEU6, Cortex-M4F, 100 MHz (8 MHz HSE × PLL). 512K flash / 128K RAM.
