@@ -27,4 +27,13 @@ echo "[setup] $(pio --version)"
 echo "[setup] Warming build (downloads the arm toolchain on first run)..."
 pio run -e drdro_f411ce || echo "[setup] warm build skipped/failed — run 'pio run' manually once online."
 
-echo "[setup] Done. Build: pio run | Test: pio test -e native | Flash: pio run -t upload"
+# Report the extra tooling so a broken share/install is obvious at create time.
+echo "[setup] claude:   $(command -v claude >/dev/null && claude --version 2>/dev/null || echo 'NOT FOUND')"
+if [ -r "$HOME/.claude/.credentials.json" ]; then
+  echo "[setup] claude:   host login shared (~/.claude/.credentials.json present)"
+else
+  echo "[setup] claude:   ~/.claude/.credentials.json not found — run 'claude' and /login once, or check the host bind mount."
+fi
+echo "[setup] st-flash: $(st-flash --version 2>&1 | head -n1 || echo 'NOT FOUND')"
+
+echo "[setup] Done. Build: pio run | Test: pio test -e native | Flash: pio run -t upload (or st-flash write firmware.bin 0x08000000)"

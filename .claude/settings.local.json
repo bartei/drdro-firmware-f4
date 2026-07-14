@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 590 nix-shell -p platformio --run 'pio run')",
+      "Bash(timeout 90 nix-shell -p python3 python3Packages.pyserial --run 'python3 tools/dro_update.py /dev/ttyACM2 app/.pio/build/drdro_f411ce/firmware.bin')",
+      "Bash(nix-shell -p openocd --run 'openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -c \"init; halt\" \\\\ *)",
+      "Bash(grep -vE '^Info :|^Open On-Chip|Licensed|For bug|^Warn : UNEXPECTED|srst_only|adapter speed:|^$')",
+      "Bash(nix-shell -p platformio --run 'pio run -d app -t clean >/dev/null 2>&1; pio run -d app && pio run -d bootloader')",
+      "Bash(apt-cache policy *)"
+    ]
+  }
+}

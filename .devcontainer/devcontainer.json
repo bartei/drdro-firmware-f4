@@ -10,16 +10,33 @@
   "mounts": [
     // Persist PlatformIO home (platform, stm32cube framework, arm toolchain, caches)
     // across rebuilds so they are not re-downloaded every time.
-    "source=drdro-platformio,target=/home/vscode/.platformio,type=volume"
+    "source=drdro-platformio,target=/home/vscode/.platformio,type=volume",
 
-    // --- ST-Link / USB flashing (LINUX HOST ONLY) -------------------------------
-    // Uncomment to pass the host USB bus in for `pio run -t upload` / debugging.
-    // Plug the ST-Link in BEFORE opening the container. Remove on macOS/Windows.
-    // ,"source=/dev/bus/usb,target=/dev/bus/usb,type=bind"
+    // Share the HOST's Claude Code login + config so `claude` in the container is
+    // already signed in and uses the same settings/memory/global CLAUDE.md.
+    //   ~/.claude       — .credentials.json (OAuth), settings, projects, memory
+    //   ~/.claude.json  — main config (onboarding flag, MCP servers, history)
+    // (Linux host paths; both must exist on the host before opening the container.)
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind",
+    "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind",
+
+    // Full host device access: ST-Link (USB / libusb under /dev/bus/usb) for
+    // flashing + debugging, and USB-serial adapters (/dev/ttyUSB*, /dev/ttyACM*)
+    // for the RS485 line protocol. Binding all of /dev covers hotplug too, so the
+    // ST-Link is found whether it was plugged in before or after container start.
+    // (If /dev ever misbehaves on your host, narrow this to /dev/bus/usb.)
+    "source=/dev,target=/dev,type=bind"
   ],
 
-  // Needed for USB device access (ST-Link). Harmless for build/test-only use.
-  "runArgs": ["--privileged"],
+  // Privileged + host networking = full, frictionless access to host USB/serial
+  // devices (no per-device --device flags, works with hotplug). Linux host only.
+  "runArgs": ["--privileged", "--network=host"],
+
+  "containerEnv": {
+    // The container's claude is pinned by the image build. Don't let it self-update
+    // and write update artifacts into the shared host ~/.claude.
+    "DISABLE_AUTOUPDATER": "1"
+  },
 
   "customizations": {
     "vscode": {
@@ -31,6 +48,9 @@
       ],
       "settings": {
         "platformio-ide.useBuiltinPIOCore": false,
+        // Point the extension at the CLI core installed in the ~/.platformio volume
+        // by setup.sh, so it does NOT try to (re)install its own core on open.
+        "platformio-ide.customPATH": "/home/vscode/.platformio/penv/bin",
         "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
