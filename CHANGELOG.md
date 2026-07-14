@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.6.1 (2026-07-14)
+
+### Bug Fixes
+
+- Update devcontainer
+  ([`0a17186`](https://github.com/bartei/drdro-firmware-f4/commit/0a1718604e25d50a7894c828353c9d86d8844b70))
+
+### Continuous Integration
+
+- Add mock static content deploy pipeline
+  ([`f9fd76a`](https://github.com/bartei/drdro-firmware-f4/commit/f9fd76a0bfdd5d2eb00caaffd9e431e18c02f03a))
+
+- Remove static content deploy pipeline
+  ([`0e2be87`](https://github.com/bartei/drdro-firmware-f4/commit/0e2be87229c4002c7a5bb1e6ce55f19170a1eb48))
+
+
 ## v0.6.0 (2026-07-02)
 
 ### Continuous Integration
