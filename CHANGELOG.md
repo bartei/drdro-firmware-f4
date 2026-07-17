@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.7.0 (2026-07-17)
+
+### Features
+
+- **ramps**: Mirror step pulses on SPARE_2 for defective board run
+  ([`5fcf3ee`](https://github.com/bartei/drdro-firmware-f4/commit/5fcf3ee74c6e1f0ad5f86198200ecaa9a12d5508))
+
+
 ## v0.6.1 (2026-07-14)
 
 ### Bug Fixes
