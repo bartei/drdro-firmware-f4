@@ -223,6 +223,7 @@ RAM_FUNC void SynchroRefreshTimerIsr(rampsHandler_t *data) {
   uint32_t start = DWT->CYCCNT;
   // Reset the step pin as soon as possible
   gpioReset(STEP_GPIO_PORT, STEP_PIN);
+  gpioReset(SPARE_2_GPIO_PORT, SPARE_2_PIN);
   rampsSharedData_t *shared = &(data->shared);
   shared->executionIntervalPrevious = shared->executionIntervalCurrent;
   shared->executionIntervalCurrent = DWT->CYCCNT;
@@ -271,6 +272,7 @@ RAM_FUNC void SynchroRefreshTimerIsr(rampsHandler_t *data) {
 
     if (direction == data->servoPreviousDirection && change != 0) {
       gpioSet(STEP_GPIO_PORT, STEP_PIN);
+      gpioSet(SPARE_2_GPIO_PORT, SPARE_2_PIN);
       shared->servo.currentSteps += direction;
     }
 
