@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.7.1-beta.1 (2026-08-17)
+
+### Bug Fixes
+
+- **ramps**: Report scale speed in steps/s (was 2.5x too high)
+  ([`8e8be85`](https://github.com/bartei/drdro-firmware-f4/commit/8e8be85e05c19d64a4e81d717b99b3818522996a))
+
+
 ## v0.7.0 (2026-07-17)
 
 ### Features
