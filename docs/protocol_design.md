@@ -80,7 +80,7 @@ typedef struct {
 | Name | Type | Count | RW | Maps to (`shared…`) |
 |---|---|---|---|---|
 | `scales.pos` | i32 | 4 | RW | `scales[N].position` (write = set current pos) |
-| `scales.speed` | i32 | 4 | RO | `scales[N].speed` |
+| `scales.speed` | i32 | 4 | RO | `scales[N].speed` (encoder **steps per second**, sampled over 50 ms by `updateSpeedTask` — so quantised to 20 steps/s) |
 | `scales.num` | i32 | 4 | RW | `scales[N].syncRatioNum` |
 | `scales.den` | i32 | 4 | RW | `scales[N].syncRatioDen` |
 | `scales.sync` | bool | 4 | RW | `scales[N].syncEnable` |
