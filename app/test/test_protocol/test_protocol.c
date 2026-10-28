@@ -10,6 +10,7 @@
 #include "Protocol.h"
 #include "SettingsStore.h"
 #include "Settings.h"
+#include "BootGuid.h"
 
 /* ---- SettingsStore stubs (real impl is HW-only; no flash here) ----------- */
 void    SettingsApply(rampsSharedData_t *s)      { (void)s; }
@@ -118,6 +119,16 @@ static void test_settings_dumps_all(void) {
   TEST_ASSERT_NOT_NULL(strstr(cap, "scales.pos="));
   TEST_ASSERT_NOT_NULL(strstr(cap, "servo.max="));
   TEST_ASSERT_NOT_NULL(strstr(cap, "diag.cycles="));
+  TEST_ASSERT_NOT_NULL(strstr(cap, "diag.bootid="));
+}
+
+static void test_get_bootid_readonly(void) {
+  shared.fastData.bootGuid = 0xDEADBEEF;
+  run("get diag.bootid");
+  TEST_ASSERT_NOT_NULL(strstr(cap, "diag.bootid=3735928559"));
+  run("set diag.bootid 5");
+  TEST_ASSERT_NOT_NULL(strstr(cap, "error=read-only"));
+  TEST_ASSERT_EQUAL_UINT32(0xDEADBEEF, shared.fastData.bootGuid);
 }
 
 static void test_error_unknown_command(void) {
@@ -134,6 +145,27 @@ static void test_error_readonly(void) {
   run("set scales.speed 0 5");
   TEST_ASSERT_NOT_NULL(strstr(cap, "error=read-only"));
   TEST_ASSERT_EQUAL_INT32(0, shared.scales[0].speed);
+}
+
+static void test_bootguid_mix_differs_across_seed_pairs(void) {
+  /* Different seed pairs give different outputs — the property the diagnostic field
+   * actually relies on (two boots with different UID/timing inputs must not collide). */
+  TEST_ASSERT_NOT_EQUAL(BootGuidMix(1, 2), BootGuidMix(1, 3));
+  TEST_ASSERT_NOT_EQUAL(BootGuidMix(1, 2), BootGuidMix(2, 1));
+  TEST_ASSERT_NOT_EQUAL(BootGuidMix(0, 0), BootGuidMix(0, 1));
+}
+
+static void test_bootguid_mix_is_deterministic(void) {
+  /* Pure function: same inputs always give the same output (no hidden global state). */
+  TEST_ASSERT_EQUAL_UINT32(BootGuidMix(0x12345678u, 0x9ABCDEF0u),
+                            BootGuidMix(0x12345678u, 0x9ABCDEF0u));
+}
+
+static void test_bootguid_mix_does_not_echo_inputs(void) {
+  /* Shouldn't look like "seedA plus a small number" — the whole point of mixing. */
+  uint32_t out = BootGuidMix(0x1000u, 1u);
+  TEST_ASSERT_NOT_EQUAL(0x1000u, out);
+  TEST_ASSERT_NOT_EQUAL(0x1001u, out);
 }
 
 static void test_error_bad_index(void) {
@@ -362,7 +394,11 @@ int main(void) {
   RUN_TEST(test_get_array_grouped);
   RUN_TEST(test_sta);
   RUN_TEST(test_settings_dumps_all);
+  RUN_TEST(test_get_bootid_readonly);
   RUN_TEST(test_error_unknown_command);
+  RUN_TEST(test_bootguid_mix_differs_across_seed_pairs);
+  RUN_TEST(test_bootguid_mix_is_deterministic);
+  RUN_TEST(test_bootguid_mix_does_not_echo_inputs);
   RUN_TEST(test_error_unknown_variable);
   RUN_TEST(test_error_readonly);
   RUN_TEST(test_error_bad_index);

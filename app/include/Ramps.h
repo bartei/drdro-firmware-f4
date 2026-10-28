@@ -101,6 +101,9 @@ typedef struct {
   uint32_t cycles;
   uint32_t executionInterval;
   uint16_t servoMode; // Servo modes: 0=disabled, 1=sync/index, 2=jog
+  uint32_t bootGuid; // Diagnostic only: regenerated fresh each boot (RampsStart), never
+                      // persisted — lets a host tell a real reset apart from a free-running
+                      // counter that happens to read the same value twice.
 } fastData_t;
 
 typedef struct {
