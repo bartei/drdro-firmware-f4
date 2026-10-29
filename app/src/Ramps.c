@@ -19,6 +19,7 @@
 #include "Ramps.h"
 #include "Scales.h"
 #include "Protocol.h"
+#include "BootGuid.h"
 
 uint16_t servoCycles = 0;
 uint16_t servoCyclesCounter = 0;
@@ -95,6 +96,18 @@ void RampsStart(rampsHandler_t *rampsData) {
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CYCCNT = 0;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
+  // Diagnostic-only per-boot GUID (fastData.bootGuid, never persisted): mix the chip's
+  // fixed 96-bit unique ID (same every boot, so alone it wouldn't do) with the cycle
+  // counter + tick count sampled right here (vary boot-to-boot: reset-to-here timing
+  // jitter, HSE startup, etc.), so a host can tell a real reset apart from a coincidence
+  // on a free-running counter. See BootGuid.h for the pure mixing step.
+  {
+    uint32_t uidMix = BootGuidMix(HAL_GetUIDw0(), HAL_GetUIDw1());
+    uidMix = BootGuidMix(uidMix, HAL_GetUIDw2());
+    uint32_t timeMix = BootGuidMix(DWT->CYCCNT, HAL_GetTick());
+    rampsData->shared.fastData.bootGuid = BootGuidMix(uidMix, timeMix);
+  }
 
   // Start the line protocol (replaces Modbus): owns USART1 RX + a service task
   ProtocolStart(rampsData->commUart, &rampsData->shared);
