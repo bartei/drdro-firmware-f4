@@ -18,6 +18,7 @@
 #include "Protocol.h"
 #include "Bootloader.h"
 #include "SettingsStore.h"
+#include "RampsRatioBanks.h"
 
 /* ---- bound UART + shared data ------------------------------------------- */
 static UART_HandleTypeDef *sUart = NULL;
@@ -117,6 +118,7 @@ static const var_entry_t kVars[] = {
   { "scales.den",    OFF(scales[0].syncRatioDen),     VT_I32, 4, sizeof(input_t), 0    },
   { "scales.sync",   OFF(scales[0].syncEnable),       VT_U16, 4, sizeof(input_t), 0    },
   { "scales.filt",   OFF(scales[0].filterValue),      VT_U16, 4, sizeof(input_t), 0, SCALES_FILTER_MAX },
+  { "scales.rev",    OFF(scales[0].revSteps),         VT_U32, 4, sizeof(input_t), 0    },
   { "servo.max",     OFF(servo.maxSpeed),             VT_F32, 1, 0, 0    },
   { "servo.acc",     OFF(servo.acceleration),         VT_F32, 1, 0, 0    },
   { "servo.jog",     OFF(servo.jogSpeed),             VT_F32, 1, 0, 0    },
@@ -127,6 +129,18 @@ static const var_entry_t kVars[] = {
   { "servo.tgt",     OFF(servo.stepsToGo),            VT_I32, 1, 0, 0    },
   { "diag.cycles",   OFF(fastData.cycles),            VT_U32, 1, 0, V_RO },
   { "diag.interval", OFF(fastData.executionInterval), VT_U32, 1, 0, V_RO },
+  /* Ratio banks: a stored per-axis ratio/sync set, loaded into the live scales[] fields
+   * by `rbank.active` or the `arm` command — "rbank", never bare "bank" (the flash
+   * firmware-image feature already owns that name). */
+  { "rbank.active",  OFF(fastData.activeRatioBank),   VT_U16, 1, 0, 0, RBANK_COUNT - 1 },
+  { "rbank.armed",   OFF(fastData.armedRatioBank),    VT_U16, 1, 0, V_RO },
+  { "rbank.armTol",  OFF(fastData.armPhaseTolerance), VT_U32, 1, 0, 0    },
+  { "rbank0.num",  OFF(ratioBanks[0].axis[0].ratioNum),  VT_I32, 4, sizeof(ratioBankAxis_t), 0 },
+  { "rbank0.den",  OFF(ratioBanks[0].axis[0].ratioDen),  VT_I32, 4, sizeof(ratioBankAxis_t), 0 },
+  { "rbank0.sync", OFF(ratioBanks[0].axis[0].syncEnable), VT_U16, 4, sizeof(ratioBankAxis_t), 0 },
+  { "rbank1.num",  OFF(ratioBanks[1].axis[0].ratioNum),  VT_I32, 4, sizeof(ratioBankAxis_t), 0 },
+  { "rbank1.den",  OFF(ratioBanks[1].axis[0].ratioDen),  VT_I32, 4, sizeof(ratioBankAxis_t), 0 },
+  { "rbank1.sync", OFF(ratioBanks[1].axis[0].syncEnable), VT_U16, 4, sizeof(ratioBankAxis_t), 0 },
   { NULL, 0, 0, 0, 0, 0 },
 };
 
@@ -204,6 +218,9 @@ static void cmdSet(int argc, char **argv) {
   /* the encoder filter is live hardware state, not just a variable — reprogram it */
   if (strcmp(v->name, "scales.filt") == 0)
     setScaleFilter(sShared->scales[idx].timerHandle, sShared->scales[idx].filterValue);
+  /* rbank.active is a trigger, not just storage — copy the bank into the live scales */
+  if (strcmp(v->name, "rbank.active") == 0)
+    RatioBankActivate(sShared, sShared->fastData.activeRatioBank);
   /* success: no body line; respEnd() emits crc + empty line */
 }
 static void cmdSta(int argc, char **argv) {
@@ -271,6 +288,27 @@ static void cmdRollback(int argc, char **argv) {
   sResetPending = 1;                   /* ProtocolService jumps to the bootloader */
 }
 
+/* Arm a ratio bank directly, with no position gating: usable from wherever the servo
+ * and every watched scale happen to be right now. `phase` (default 0) is only
+ * meaningful for a rotary watched scale (threading: engage once scale.pos % revSteps
+ * == phase, not just phase 0) — see RampsRatioBanks.h / RatioBankArm. */
+static void cmdArm(int argc, char **argv) {
+  if (argc < 2 || argc > 3) { respError("usage: arm <bank> [phase]"); return; }
+  char *end;
+  long bank = strtol(argv[1], &end, 10);
+  if (*end || bank < 0 || bank >= RBANK_COUNT) { respError("value out of range"); return; }
+  long phase = 0;
+  if (argc == 3) {
+    phase = strtol(argv[2], &end, 10);
+    if (*end || phase < 0) { respError("value out of range"); return; }
+  }
+  if (RatioBankArm(sShared, (uint16_t)bank, (uint32_t)phase) != 0) {
+    respError("value out of range");
+    return;
+  }
+  respKV("arm", "ok");
+}
+
 static const cmd_t kCommands[] = {
   { "sta",      cmdSta,      "fast read: scale pos/speed + servo pos/speed/tgt/mode" },
   { "set",      cmdSet,      "set <name> [idx] <value>" },
@@ -280,6 +318,7 @@ static const cmd_t kCommands[] = {
   { "load",     cmdLoad,     "reload settings from flash" },
   { "bank",     cmdBank,     "bank [<0|1>] — active bank: report, or select for next boot" },
   { "rollback", cmdRollback, "switch to the other bank and reboot into it" },
+  { "arm",      cmdArm,      "arm <bank> [phase] — wait for any synced scale to cross its alignment (rotary: target phase, default 0), then engage" },
   { "version",  cmdVersion,  "firmware version" },
   { "help",     cmdHelp,     "list commands" },
   { "update",   cmdUpdate,   "reboot into the firmware-update bootloader" },
