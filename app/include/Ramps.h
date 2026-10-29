@@ -77,6 +77,7 @@ typedef struct {
   int32_t syncRatioNum, syncRatioDen;
   uint16_t syncEnable;
   uint16_t filterValue;   /* encoder input-capture filter, 0..SCALES_FILTER_MAX */
+  uint32_t revSteps;      /* rotary: counts per revolution; 0 = not rotary */
 } input_t;
 
 typedef struct {
@@ -101,7 +102,38 @@ typedef struct {
   uint32_t cycles;
   uint32_t executionInterval;
   uint16_t servoMode; // Servo modes: 0=disabled, 1=sync/index, 2=jog
+  uint16_t activeRatioBank;  /* ratioBanks[] index currently live in scales[].syncRatio* */
+  uint16_t armedRatioBank;   /* 0 = not armed; else = (armed bank index + 1) — the +1
+                              * disambiguates "armed into bank 0" from "not armed". */
+  uint32_t armPhaseTolerance; /* `arm` engage tolerance, rotary watched-scale counts;
+                               * needs bench tuning for real spindle speed/encoder. */
+  int32_t  armInitialError[SCALES_COUNT]; /* internal: snapshot, per scale, of
+                              * RatioBankMatchError() at the moment of arming — only
+                              * meaningful for a non-rotary watched scale. Waiting for
+                              * that error to change sign (or hit exactly 0) is the
+                              * intercept condition for it. NOT protocol-exposed —
+                              * cross-task bookkeeping between servoEnableTask and the
+                              * `arm` command only. See RampsRatioBanks.h. */
+  uint32_t armTargetPhase[SCALES_COUNT]; /* internal: `arm`'s `phase` argument, per
+                              * scale, folded into [0,revSteps) — only meaningful for a
+                              * rotary watched scale. NOT protocol-exposed, same
+                              * treatment as armInitialError. */
 } fastData_t;
+
+/* Ratio bank: a stored {ratioNum, ratioDen, syncEnable} per scale, selected as a unit —
+ * loaded into the live scales[] fields by RatioBankActivate(), one bank at a time. NOT
+ * the flash firmware-image "bank" (SettingsBankSet et al) — that's why this is always
+ * "rbank" over the protocol, never bare "bank". */
+#define RBANK_COUNT 2
+
+typedef struct {
+  int32_t  ratioNum, ratioDen;
+  uint16_t syncEnable;
+} ratioBankAxis_t;
+
+typedef struct {
+  ratioBankAxis_t axis[SCALES_COUNT];
+} ratioBank_t;
 
 typedef struct {
   uint32_t executionInterval;
@@ -111,6 +143,7 @@ typedef struct {
   servo_t servo;
   input_t scales[SCALES_COUNT];
   fastData_t fastData;
+  ratioBank_t ratioBanks[RBANK_COUNT];
 } rampsSharedData_t;
 
 typedef struct {

@@ -19,6 +19,7 @@
 #include "Ramps.h"
 #include "Scales.h"
 #include "Protocol.h"
+#include "RampsRatioBanks.h"
 
 uint16_t servoCycles = 0;
 uint16_t servoCyclesCounter = 0;
@@ -360,6 +361,8 @@ _Noreturn void servoEnableTask(void *argument) {
 
   for (;;) {
     osDelay(100);
+
+    RatioBankArmUpdate(shared);
 
     bool anySyncMotionEnabled = false;
     for (int i = 0; i < SCALES_COUNT; i++) {
